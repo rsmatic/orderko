@@ -9,10 +9,14 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+COPY packages/core/package.json ./packages/core/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 RUN npm ci --no-audit --fund=false
 
+# The demo backend imports @overnight-oats/core, so the workspace it links to
+# has to be present before the build runs.
+COPY packages/core ./packages/core
 COPY apps/web ./apps/web
 # Served from the domain root behind Caddy, so no sub-path and no demo backend.
 ENV VITE_BASE=/
