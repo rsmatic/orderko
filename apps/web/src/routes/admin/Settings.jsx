@@ -19,7 +19,7 @@ export default function Settings() {
         setGrabMode(res.grab_mode);
         setForm({
           shop_name: s.shop_name ?? '',
-          currency: s.currency ?? 'MYR',
+          currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
           pickup_address: s.pickup_address ?? '',
           pickup_lat: String(s.pickup_lat ?? ''),

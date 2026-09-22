@@ -124,7 +124,7 @@ export function createLiveProvider() {
       return {
         quote_id: best.serviceQuota?.quoteID ?? best.quoteID ?? null,
         fee: Number(best.amount ?? best.estimatedTotalFare ?? 0) / 100,
-        currency: best.currency?.code ?? 'MYR',
+        currency: best.currency?.code ?? 'PHP',
         distance_km: payload.distance ? Number(payload.distance) / 1000 : null,
         eta_minutes: best.estimatedTimeline?.completed
           ? Math.round(
@@ -157,7 +157,7 @@ export function createLiveProvider() {
         provider_delivery_id: payload.deliveryID,
         status: mapStatus(payload.status),
         fee: Number(payload.quote?.amount ?? 0) / 100,
-        currency: payload.quote?.currency?.code ?? 'MYR',
+        currency: payload.quote?.currency?.code ?? 'PHP',
         distance_km: null,
         tracking_url: payload.trackingURL ?? null,
         pickup_eta: payload.timeline?.pickup ?? null,

@@ -144,7 +144,7 @@ export function Register() {
             </Field>
             <Field label="Phone" hint="So we can reach you about the order.">
               <input
-                className="input" type="tel" placeholder="+60 12 345 6789"
+                className="input" type="tel" placeholder="+63 917 123 4567"
                 value={form.phone} onChange={(e) => set({ phone: e.target.value })}
               />
             </Field>

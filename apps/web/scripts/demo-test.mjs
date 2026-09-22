@@ -60,24 +60,31 @@ check('has Skippy peanut butter', spreads.options.some((o) => o.name.includes('S
 check('milk base is single-choice', byo.option_groups.find((g) => g.slug === 'milk-base').input_type === 'single');
 
 console.log('\nPricing');
-const id = (n) => {
+const optionByName = (n) => {
   for (const g of byo.option_groups) {
     const o = g.options.find((x) => x.name === n);
-    if (o) return o.id;
+    if (o) return o;
   }
   throw new Error('no option named ' + n);
 };
+const id = (n) => optionByName(n).id;
+const priceOf = (n) => Number(optionByName(n).price_delta);
 const size = id('Regular (350ml)');
 const milk = id('Oat Milk');
 const three = [size, milk, id('Banana'), id('Mango'), id('Dragon Fruit'), id('Walnuts'), id('Chia Seeds'), id('Peanut Butter (Skippy)')];
 
 const q = await call('POST', '/orders/quote', { items: [{ product_id: byo.id, quantity: 2, option_ids: three }] });
 check('three fruits plus add-ons prices cleanly', q.ok, q.error);
-const expected = (12 + 0 + 2 + 1.5 + 2.5 + 2.5 + 2.5 + 1.5 + 3) * 2;
+const CHOSEN = ['Regular (350ml)', 'Oat Milk', 'Banana', 'Mango', 'Dragon Fruit',
+  'Walnuts', 'Chia Seeds', 'Peanut Butter (Skippy)'];
+const expected = (Number(byo.base_price) + CHOSEN.reduce((s, n) => s + priceOf(n), 0)) * 2;
 check('total matches the option sum',
   Math.abs(q.body.items[0].line_total - expected) < 0.01,
   'want ' + expected + ' got ' + (q.body && q.body.items[0].line_total));
 check('tax applied', q.body.tax > 0);
+check('quoted in the shop currency', q.body.currency === menu.body.settings.currency,
+  q.body.currency);
+check('shop currency is PHP', menu.body.settings.currency === 'PHP', menu.body.settings.currency);
 
 const four = await call('POST', '/orders/quote', {
   items: [{ product_id: byo.id, quantity: 1, option_ids: [size, milk, id('Banana'), id('Mango'), id('Dragon Fruit'), id('Strawberry')] }],
@@ -93,15 +100,15 @@ check('option from another product rejected', !wrong.ok, wrong.error);
 
 const tiny = await call('POST', '/orders', {
   items: [{ product_id: cold.id, quantity: 1, option_ids: [] }],
-  fulfillment_type: 'pickup', contact_name: 'Tiny', contact_phone: '+60111111111',
+  fulfillment_type: 'pickup', contact_name: 'Tiny', contact_phone: '+639171111111',
 }, cT);
 check('order below the minimum rejected', !tiny.ok, tiny.error);
 
 console.log('\nCheckout and Grab');
 const order = await call('POST', '/orders', {
   items: [{ product_id: byo.id, quantity: 1, option_ids: three, notes: 'Extra cold' }],
-  fulfillment_type: 'delivery', contact_name: 'Smoke Tester', contact_phone: '+60123000003',
-  delivery_address: 'Menara Binjai, Jalan Ampang', delivery_lat: 3.158, delivery_lng: 101.715,
+  fulfillment_type: 'delivery', contact_name: 'Smoke Tester', contact_phone: '+639170000003',
+  delivery_address: 'BGC Corporate Center, Taguig', delivery_lat: 14.5507, delivery_lng: 121.0494,
   payment_method: 'ewallet',
 }, cT);
 check('order created', order.ok, order.error);
@@ -141,10 +148,33 @@ check('driver details captured', Boolean(done.body.delivery.driver_name));
 check('event trail written', done.body.delivery.events.length >= 4);
 check('order can be completed', (await call('PATCH', '/orders/' + oid + '/status', { status: 'completed' }, mT)).ok);
 
+console.log('\nEmail editing');
+const selfEdit = await call('PATCH', '/auth/me', { email: 'chloe.new@orderko.test' }, cT);
+check('a customer can change their own email', selfEdit.ok, selfEdit.error);
+check('the new address signs in',
+  (await call('POST', '/auth/login', { email: 'chloe.new@orderko.test', password: 'Password123!' })).ok);
+check('the old address no longer signs in',
+  !(await call('POST', '/auth/login', { email: 'cust@orderko.test', password: 'Password123!' })).ok);
+const clash = await call('PATCH', '/auth/me', { email: 'admin@orderko.test' }, cT);
+check('an address already in use is rejected', clash.status === 409, String(clash.status));
+const malformed = await call('PATCH', '/auth/me', { email: 'not-an-email' }, cT);
+check('a malformed address is rejected', malformed.status === 400, String(malformed.status));
+await call('PATCH', '/auth/me', { email: 'cust@orderko.test' }, cT);
+
+const adminEdit = await call('PATCH', '/admin/users/3', { email: 'CHLOE@Orderko.test' }, aT);
+check('an admin can change another account', adminEdit.ok, adminEdit.error);
+check('the address is normalised to lower case',
+  adminEdit.body && adminEdit.body.email === 'chloe@orderko.test',
+  adminEdit.body && adminEdit.body.email);
+check('a customer cannot edit another account',
+  (await call('PATCH', '/admin/users/1', { email: 'x@y.com' }, cT)).status === 403);
+await call('PATCH', '/admin/users/3', { email: 'cust@orderko.test' }, aT);
+
 console.log('\nManager and admin');
-const pe = await call('PATCH', '/catalog/products/' + byo.id, { base_price: 13 }, mT);
-check('manager changes a price', pe.ok && pe.body.base_price === 13, pe.error);
-await call('PATCH', '/catalog/products/' + byo.id, { base_price: 12 }, mT);
+const newPrice = Number(byo.base_price) + 25;
+const pe = await call('PATCH', '/catalog/products/' + byo.id, { base_price: newPrice }, mT);
+check('manager changes a price', pe.ok && pe.body.base_price === newPrice, pe.error);
+await call('PATCH', '/catalog/products/' + byo.id, { base_price: Number(byo.base_price) }, mT);
 check('customer cannot change prices', (await call('PATCH', '/catalog/products/' + byo.id, { base_price: 1 }, cT)).status === 403);
 
 check('manager marks an option sold out', (await call('PATCH', '/catalog/options/' + id('Dragon Fruit'), { is_available: false }, mT)).ok);

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { money } from '../lib/api';
+import { money, DEFAULT_CURRENCY } from '../lib/api';
 
 export function Spinner({ label }) {
   return (
@@ -106,7 +106,7 @@ export function Qty({ value, onChange, min = 1, max = 50, disabled }) {
   );
 }
 
-export function Money({ amount, currency = 'MYR' }) {
+export function Money({ amount, currency = DEFAULT_CURRENCY }) {
   return <span className="mono">{money(amount, currency)}</span>;
 }
 

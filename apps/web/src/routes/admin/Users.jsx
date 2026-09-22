@@ -172,6 +172,8 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           role: form.role,
           is_active: form.is_active,
         };
+        const email = form.email.trim().toLowerCase();
+        if (email && email !== (user.email ?? '').toLowerCase()) body.email = email;
         if (form.password) body.password = form.password;
         await api.patch(`/admin/users/${user.id}`, body);
         onSaved('Account updated');
@@ -184,7 +186,8 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
 
   const valid =
     form.name.trim().length >= 2 &&
-    (!isNew || (form.email.includes('@') && form.password.length >= 8));
+    form.email.includes('@') &&
+    (!isNew || form.password.length >= 8);
 
   return (
     <Modal
@@ -205,11 +208,15 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
         <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} />
       </Field>
 
-      {isNew ? (
-        <Field label="Email">
-          <input className="input" type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} />
-        </Field>
-      ) : null}
+      <Field
+        label="Email"
+        hint={isNew ? undefined : 'This is their sign-in name — changing it changes how they log in.'}
+      >
+        <input
+          className="input" type="email" required
+          value={form.email} onChange={(e) => set({ email: e.target.value })}
+        />
+      </Field>
 
       <Field label="Phone">
         <input className="input" type="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} />

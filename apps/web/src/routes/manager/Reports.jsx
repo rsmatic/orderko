@@ -27,7 +27,7 @@ const RANGES = [
 ];
 
 const shortDay = (value) =>
-  new Intl.DateTimeFormat('en-MY', { day: 'numeric', month: 'short' }).format(new Date(value));
+  new Intl.DateTimeFormat('en-PH', { day: 'numeric', month: 'short' }).format(new Date(value));
 
 function ChartTooltip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null;
@@ -184,7 +184,7 @@ export default function Reports() {
                       <YAxis
                         tickLine={false} axisLine={false} width={54}
                         tick={{ fill: VIZ.axis, fontSize: 11 }}
-                        tickFormatter={(v) => `RM${v}`}
+                        tickFormatter={(v) => `₱${v}`}
                       />
                       <Tooltip
                         content={<ChartTooltip formatter={(v) => money(v)} />}

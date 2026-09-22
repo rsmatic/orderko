@@ -152,6 +152,9 @@ async function main() {
     `expected ${(expectedUnit * 2).toFixed(2)}, got ${quote.body?.items?.[0]?.line_total}`,
   );
   check('tax is applied', Number(quote.body.tax) > 0);
+  check('quoted in the shop currency', quote.body.currency === menu.body.settings.currency,
+    quote.body.currency);
+  check('shop currency is PHP', menu.body.settings.currency === 'PHP', menu.body.settings.currency);
 
   const fourFruits = await call('POST', '/orders/quote', {
     body: {
@@ -180,7 +183,7 @@ async function main() {
       items: [{ product_id: coldBrew.id, quantity: 1, option_ids: [] }],
       fulfillment_type: 'pickup',
       contact_name: 'Minimum Test',
-      contact_phone: '+60111111111',
+      contact_phone: '+639171111111',
     },
   });
   check('an order below the minimum is rejected', tinyOrder.status === 400, `got ${tinyOrder.status}`);
@@ -189,8 +192,8 @@ async function main() {
   section('Grab delivery quote');
   const deliveryQuote = await call('POST', '/delivery/quote', {
     body: {
-      address: 'Level 21, Menara Binjai, Jalan Ampang, 50450 Kuala Lumpur',
-      lat: 3.158, lng: 101.715,
+      address: 'Level 21, BGC Corporate Center, Bonifacio Global City, Taguig, 1634',
+      lat: 14.5507, lng: 121.0494,
     },
   });
   check('a delivery fee is quoted', deliveryQuote.status === 200 && deliveryQuote.body.fee > 0,
@@ -208,11 +211,11 @@ async function main() {
       ],
       fulfillment_type: 'delivery',
       contact_name: 'Smoke Tester',
-      contact_phone: '+60123000003',
+      contact_phone: '+639170000003',
       contact_email: 'cust@orderko.test',
-      delivery_address: 'Level 21, Menara Binjai, Jalan Ampang, 50450 Kuala Lumpur',
-      delivery_lat: 3.158,
-      delivery_lng: 101.715,
+      delivery_address: 'Level 21, BGC Corporate Center, Bonifacio Global City, Taguig, 1634',
+      delivery_lat: 14.5507,
+      delivery_lng: 121.0494,
       payment_method: 'ewallet',
     },
   });
@@ -344,6 +347,44 @@ async function main() {
   check('a customer cannot change prices', customerEdit.status === 403, `got ${customerEdit.status}`);
 
   // --------------------------------------------------------------- admin
+  section('Email editing');
+  const selfEdit = await call('PATCH', '/auth/me', {
+    token: customerToken, body: { email: 'chloe.new@orderko.test' },
+  });
+  check('a customer can change their own email', selfEdit.status === 200, selfEdit.body?.error);
+
+  const newAddressLogin = await call('POST', '/auth/login', {
+    body: { email: 'chloe.new@orderko.test', password: PASSWORD },
+  });
+  check('the new address signs in', newAddressLogin.ok);
+
+  const oldAddressLogin = await call('POST', '/auth/login', {
+    body: { email: 'cust@orderko.test', password: PASSWORD },
+  });
+  check('the old address no longer signs in', oldAddressLogin.status === 401);
+
+  const clash = await call('PATCH', '/auth/me', {
+    token: customerToken, body: { email: 'admin@orderko.test' },
+  });
+  check('an address already in use is rejected', clash.status === 409, `got ${clash.status}`);
+
+  const malformed = await call('PATCH', '/auth/me', {
+    token: customerToken, body: { email: 'not-an-email' },
+  });
+  check('a malformed address is rejected', malformed.status === 400, `got ${malformed.status}`);
+
+  const adminEdit = await call('PATCH', '/admin/users/3', {
+    token: adminToken, body: { email: 'CHLOE@Orderko.test' },
+  });
+  check('an admin can change another account', adminEdit.status === 200, adminEdit.body?.error);
+  check('the address is normalised to lower case',
+    adminEdit.body?.email === 'chloe@orderko.test', adminEdit.body?.email);
+
+  // Put it back, so re-running the suite against the same store still works.
+  await call('PATCH', '/admin/users/3', { token: adminToken, body: { email: 'cust@orderko.test' } });
+  check('the seeded address works again',
+    (await call('POST', '/auth/login', { body: { email: 'cust@orderko.test', password: PASSWORD } })).ok);
+
   section('Admin: reports, users, settings');
   const stats = await call('GET', '/admin/stats?days=30', { token: adminToken });
   check('stats load', stats.status === 200);

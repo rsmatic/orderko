@@ -74,7 +74,7 @@ rules are data, not code:
 | **Fruit Mix** | **pick several** | **required, max 3** — banana, mango, dragon fruit, strawberry, blueberry, kiwi, green apple |
 | Nuts & Seeds | pick several | optional — walnuts, almonds, crushed peanuts, chia, pumpkin, flax, granola |
 | Spreads | pick several | optional, max 2 — **Skippy peanut butter**, almond butter, Nutella, Biscoff |
-| Sweetener | pick one | optional — honey, maple, gula melaka, date syrup |
+| Sweetener | pick one | optional — honey, maple, muscovado, date syrup |
 | Extras | pick several | optional — protein scoop, cacao nibs, toasted coconut, cinnamon, extra oats |
 
 A manager can add a group, change its min/max, or add a new fruit, and the
@@ -100,8 +100,10 @@ a real Grab fee quote, order tracking with driver details, and order history.
 
 Everything a manager can do, plus:
 
-- **People** — create staff and customer accounts, change roles, reset passwords,
-  disable accounts. The last active admin can't be demoted or disabled.
+- **People** — create staff and customer accounts, change email addresses and
+  roles, reset passwords, disable accounts. Email is the sign-in name, so a
+  change is rejected if another account already uses it. The last active admin
+  can't be demoted or disabled.
 - **Shop settings** — name, currency, tax rate, minimum order, prep time, the
   pickup address Grab collects from, and a delivery on/off switch.
 - **Activity log** — every staff change, who made it and when.
@@ -146,7 +148,7 @@ Switching modes needs no code change.
 
 ### Address lookup
 
-Checkout offers a short list of Kuala Lumpur landmarks instead of a live address
+Checkout offers a short list of Metro Manila landmarks instead of a live address
 autocomplete, since that needs a Places API key. Checkout only ever needs an
 address string plus lat/lng — swap `SAVED_PLACES` in
 `apps/web/src/routes/customer/Checkout.jsx` for Google Places or Grab's own
@@ -162,7 +164,9 @@ availability and stock, and computes the total. `POST /api/orders/quote` returns
 exactly what `POST /api/orders` will charge. The delivery fee is re-quoted from
 the provider at checkout, so a tampered client can't discount its own delivery.
 
-Tax applies to goods, not to the delivery fee. Item names and prices are
+Prices are in Philippine pesos and tax is the 12% VAT rate, both held in
+settings rather than in code — Admin → Shop settings changes either. Tax
+applies to goods, not to the delivery fee. Item names and prices are
 snapshotted onto the order line at checkout, so changing a price later doesn't
 rewrite history. Products and options that appear in past orders are deactivated
 rather than deleted — there is no foreign key to enforce that now, so the core

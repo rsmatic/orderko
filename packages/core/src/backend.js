@@ -95,6 +95,20 @@ export function createBackend({ state, persist, auth, delivery }) {
     return u;
   };
 
+  /**
+   * Validates and normalises a new email, rejecting one already in use.
+   * Email is the login identifier, so a clash would lock someone out.
+   */
+  function changeEmail(target, raw) {
+    const email = String(raw ?? '').toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('Enter a valid email address');
+    if (email.length > 190) throw bad('That email is too long');
+    if (db.users.some((u) => u.email === email && u.id !== target.id)) {
+      throw conflict('Another account already uses that email');
+    }
+    return email;
+  }
+
   function audit(user, action, entity = null, entityId = null, meta = null) {
     db.audit.unshift({
       id: nextId('audit'),
@@ -292,6 +306,7 @@ export function createBackend({ state, persist, auth, delivery }) {
 
     ['PATCH', /^\/auth\/me$/, async (m, body, user) => {
       requireUser(user);
+      if (body.email !== undefined) user.email = changeEmail(user, body.email);
       if (body.name !== undefined) user.name = body.name;
       if (body.phone !== undefined) user.phone = body.phone;
       if (body.password) user.password_hash = await auth.hashPassword(body.password);
@@ -769,7 +784,7 @@ export function createBackend({ state, persist, auth, delivery }) {
         quote_id: quote.quote_id ?? null,
         status: booking.status ?? 'allocating',
         fee: booking.fee ?? quote.fee ?? 0,
-        currency: booking.currency ?? 'MYR',
+        currency: booking.currency ?? 'PHP',
         distance_km: booking.distance_km ?? quote.distance_km ?? null,
         driver_name: null,
         driver_phone: null,
@@ -947,6 +962,7 @@ export function createBackend({ state, persist, auth, delivery }) {
         throw bad('This is the last active admin');
       }
 
+      if (body.email !== undefined) target.email = changeEmail(target, body.email);
       for (const k of ['name', 'phone', 'role']) if (body[k] !== undefined) target[k] = body[k];
       if (body.is_active !== undefined) target.is_active = body.is_active ? 1 : 0;
       if (body.password) target.password_hash = await auth.hashPassword(body.password);

@@ -8,7 +8,7 @@ const emptyProduct = (categories) => ({
   category_id: categories[0]?.id ?? 1,
   name: '',
   description: '',
-  base_price: '12.00',
+  base_price: '150',
   image_url: '',
   is_active: true,
   track_stock: false,
@@ -21,7 +21,7 @@ const emptyOption = (groupId) => ({
   group_id: groupId,
   name: '',
   description: '',
-  price_delta: '0.00',
+  price_delta: '0',
   is_available: true,
   track_stock: false,
   stock_qty: 0,
@@ -377,9 +377,9 @@ function ProductEditor({ product, menu, canDelete, onClose, onSaved, onError }) 
             {menu.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
-        <Field label="Base price (MYR)" hint="Options add on top of this.">
+        <Field label="Base price (PHP)" hint="Options add on top of this.">
           <input
-            className="input" type="number" step="0.50" min="0"
+            className="input" type="number" step="5" min="0"
             value={form.base_price} onChange={(e) => set({ base_price: e.target.value })}
           />
         </Field>
@@ -522,9 +522,9 @@ function OptionEditor({ option, groups, onClose, onSaved, onError }) {
         <input className="input" value={form.description} onChange={(e) => set({ description: e.target.value })} />
       </Field>
       <div className="grid grid-2">
-        <Field label="Extra charge (MYR)" hint="0 means included.">
+        <Field label="Extra charge (PHP)" hint="0 means included.">
           <input
-            className="input" type="number" step="0.50"
+            className="input" type="number" step="5"
             value={form.price_delta} onChange={(e) => set({ price_delta: e.target.value })}
           />
         </Field>

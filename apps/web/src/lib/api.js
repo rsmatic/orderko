@@ -111,15 +111,29 @@ export const api = {
   del:   (path, opts)       => request('DELETE', path, undefined, opts),
 };
 
-export const money = (amount, currency = 'MYR') =>
-  new Intl.NumberFormat('en-MY', { style: 'currency', currency }).format(Number(amount) || 0);
+/**
+ * Shop currency. Callers that have an order pass its own `currency`, so
+ * historical orders keep formatting in whatever they were charged in.
+ */
+export const DEFAULT_CURRENCY = 'PHP';
+const LOCALE = 'en-PH';
+
+export const money = (amount, currency = DEFAULT_CURRENCY) =>
+  new Intl.NumberFormat(LOCALE, {
+    style: 'currency',
+    currency,
+    // Peso prices are whole numbers in practice; keep the decimals only when
+    // a value actually has them.
+    minimumFractionDigits: Number.isInteger(Number(amount)) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(Number(amount) || 0);
 
 export const shortTime = (value) =>
-  value ? new Intl.DateTimeFormat('en-MY', { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '';
+  value ? new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '';
 
 export const dateTime = (value) =>
   value
-    ? new Intl.DateTimeFormat('en-MY', {
+    ? new Intl.DateTimeFormat(LOCALE, {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
       }).format(new Date(value))
     : '';

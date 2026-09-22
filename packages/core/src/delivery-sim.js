@@ -20,16 +20,16 @@ const DESCRIPTIONS = {
 };
 
 const DRIVERS = [
-  { name: 'Hafiz R.',   phone: '+60198887766', plate: 'WXY 4412' },
-  { name: 'Siti N.',    phone: '+60177665544', plate: 'VBN 8821' },
-  { name: 'Kumar S.',   phone: '+60163344221', plate: 'WA 6390 C' },
-  { name: 'Wei Lin T.', phone: '+60122119988', plate: 'BMT 1173' },
+  { name: 'Jomar R.',   phone: '+639178887766', plate: 'NCR 4412' },
+  { name: 'Liezl S.',   phone: '+639177665544', plate: 'ABC 8821' },
+  { name: 'Ramon D.',   phone: '+639163344221', plate: 'NDF 6390' },
+  { name: 'Katrina M.', phone: '+639172119988', plate: 'TYU 1173' },
 ];
 
 const rand = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 
-/** Flag-down plus distance, rounded to sen. */
-const feeForDistance = (km) => round2(5.0 + Math.max(0, km - 1) * 1.2);
+/** Flag-down plus distance, in pesos — roughly GrabExpress city rates. */
+const feeForDistance = (km) => round2(55 + Math.max(0, km - 1) * 12);
 
 export function createSimulatedDelivery({ publicBaseUrl = '' } = {}) {
   return {
@@ -40,7 +40,7 @@ export function createSimulatedDelivery({ publicBaseUrl = '' } = {}) {
       return {
         quote_id: `QUO-${rand()}`,
         fee: feeForDistance(km),
-        currency: 'MYR',
+        currency: 'PHP',
         distance_km: round2(km),
         eta_minutes: Math.max(12, Math.round(km * 4 + 10)),
         provider: 'simulated',
@@ -55,7 +55,7 @@ export function createSimulatedDelivery({ publicBaseUrl = '' } = {}) {
         provider_delivery_id: id,
         status: 'allocating',
         fee: quote.fee,
-        currency: quote.currency ?? 'MYR',
+        currency: quote.currency ?? 'PHP',
         distance_km: quote.distance_km,
         tracking_url: publicBaseUrl ? `${publicBaseUrl}/api/delivery/track/${id}` : null,
         pickup_eta: new Date(Date.now() + 8 * 60_000).toISOString(),

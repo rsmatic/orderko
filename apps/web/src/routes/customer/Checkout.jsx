@@ -12,11 +12,11 @@ import { Alert, Field, Spinner, Empty } from '../../components/ui';
  * address string plus lat/lng.
  */
 const SAVED_PLACES = [
-  { label: 'Residensi Damai, Jalan Maarof', address: 'Unit 8-3, Residensi Damai, Jalan Maarof, 59100 Kuala Lumpur', lat: 3.1421, lng: 101.674 },
-  { label: 'Menara Binjai, Jalan Ampang',   address: 'Level 21, Menara Binjai, Jalan Ampang, 50450 Kuala Lumpur',   lat: 3.158,  lng: 101.715 },
-  { label: 'Mid Valley Megamall',           address: 'Mid Valley Megamall, Lingkaran Syed Putra, 58000 Kuala Lumpur', lat: 3.1177, lng: 101.6774 },
-  { label: 'KLCC Twin Towers',              address: 'Suria KLCC, Jalan Ampang, 50088 Kuala Lumpur',                 lat: 3.1578, lng: 101.7119 },
-  { label: 'Bangsar Village II',            address: 'Bangsar Village II, Jalan Telawi 1, 59100 Kuala Lumpur',       lat: 3.1305, lng: 101.6702 },
+  { label: 'One Rockwell, Makati',      address: 'Unit 8-3, One Rockwell, Rockwell Center, Makati City, 1210',            lat: 14.5657, lng: 121.0355 },
+  { label: 'BGC Corporate Center',      address: 'Level 21, BGC Corporate Center, Bonifacio Global City, Taguig, 1634',   lat: 14.5507, lng: 121.0494 },
+  { label: 'Greenbelt, Makati',         address: 'Greenbelt 3, Ayala Center, Makati City, 1224',                          lat: 14.5527, lng: 121.0209 },
+  { label: 'Ortigas Center, Pasig',     address: 'Podium Mall, ADB Avenue, Ortigas Center, Pasig City, 1605',             lat: 14.5853, lng: 121.0600 },
+  { label: 'Eastwood City, Quezon City',address: 'Eastwood City, Bagumbayan, Quezon City, 1110',                          lat: 14.6094, lng: 121.0800 },
 ];
 
 export default function Checkout() {
@@ -230,7 +230,7 @@ export default function Checkout() {
               <Field label="Phone">
                 <input
                   className="input" required minLength={6} maxLength={32} type="tel"
-                  placeholder="+60 12 345 6789"
+                  placeholder="+63 917 123 4567"
                   value={form.contact_phone}
                   onChange={(e) => set({ contact_phone: e.target.value })}
                 />

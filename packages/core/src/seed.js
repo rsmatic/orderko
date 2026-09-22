@@ -1,8 +1,9 @@
 /**
- * Seed data for demo mode, mirroring db/seed.sql.
+ * Seed data: the catalog a fresh store starts with, plus two weeks of sample
+ * orders so the kitchen board and the reports have something to show.
  *
- * Keep the two in step: the demo exists so the published site behaves like a
- * real deployment, and it stops being useful the moment the catalogs diverge.
+ * Prices are in Philippine pesos; `currency` in the settings is what the UI
+ * formats against, so change both together.
  */
 
 export const SEED_PASSWORD = 'Password123!';
@@ -13,20 +14,22 @@ export const SEED_PASSWORD = 'Password123!';
  * hashes and no plaintext password is ever written to disk.
  */
 export const seedUsers = () => [
-  { id: 1, email: 'admin@orderko.test',   name: 'Aida Admin',     phone: '+60123000001', role: 'admin',    is_active: 1, created_at: daysAgo(90) },
-  { id: 2, email: 'manager@orderko.test', name: 'Marcus Manager', phone: '+60123000002', role: 'manager',  is_active: 1, created_at: daysAgo(80) },
-  { id: 3, email: 'cust@orderko.test',    name: 'Chloe Customer', phone: '+60123000003', role: 'customer', is_active: 1, created_at: daysAgo(40) },
+  { id: 1, email: 'admin@orderko.test',   name: 'Aida Admin',     phone: '+639170000001', role: 'admin',    is_active: 1, created_at: daysAgo(90) },
+  { id: 2, email: 'manager@orderko.test', name: 'Marco Manager',  phone: '+639170000002', role: 'manager',  is_active: 1, created_at: daysAgo(80) },
+  { id: 3, email: 'cust@orderko.test',    name: 'Chloe Customer', phone: '+639170000003', role: 'customer', is_active: 1, created_at: daysAgo(40) },
 ];
 
 export const seedSettings = () => ({
   shop_name: 'Orderko Overnight Oats',
-  currency: 'MYR',
-  tax_rate: 0.06,
-  pickup_address: '12 Jalan Kemuning, Bangsar, 59100 Kuala Lumpur',
-  pickup_lat: 3.1298,
-  pickup_lng: 101.6708,
-  pickup_phone: '+60312345678',
-  min_order_total: 12,
+  currency: 'PHP',
+  // Philippine VAT. Change it in Admin → Shop settings if your registration
+  // differs — a small shop below the VAT threshold may not charge it at all.
+  tax_rate: 0.12,
+  pickup_address: '12 Jupiter Street, Bel-Air, Makati City, 1209 Metro Manila',
+  pickup_lat: 14.5611,
+  pickup_lng: 121.0296,
+  pickup_phone: '+63288123456',
+  min_order_total: 150,
   delivery_enabled: true,
   order_lead_mins: 20,
 });
@@ -41,31 +44,31 @@ export const seedProducts = () => [
   {
     id: 1, category_id: 2, name: 'Build Your Own Oats', slug: 'build-your-own-oats',
     description: 'Start with our rolled-oat base soaked overnight, then pick your milk, fruit mix and toppings.',
-    base_price: 12.0, image_url: 'https://images.unsplash.com/photo-1517093157656-b9eccef91cb1?w=800&q=70',
+    base_price: 150.0, image_url: 'https://images.unsplash.com/photo-1517093157656-b9eccef91cb1?w=800&q=70',
     is_active: 1, track_stock: 0, stock_qty: 0, sort_order: 1,
   },
   {
     id: 2, category_id: 1, name: 'Classic Banana & Honey', slug: 'classic-banana-honey',
     description: 'Rolled oats soaked in fresh milk with banana, a swirl of honey and a pinch of cinnamon.',
-    base_price: 14.0, image_url: 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?w=800&q=70',
+    base_price: 175.0, image_url: 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?w=800&q=70',
     is_active: 1, track_stock: 0, stock_qty: 0, sort_order: 2,
   },
   {
     id: 3, category_id: 1, name: 'Tropical Mango Dragon', slug: 'tropical-mango-dragon',
     description: 'Coconut-milk oats layered with mango and dragon fruit, finished with toasted coconut.',
-    base_price: 16.5, image_url: 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=800&q=70',
+    base_price: 210.0, image_url: 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=800&q=70',
     is_active: 1, track_stock: 0, stock_qty: 0, sort_order: 3,
   },
   {
     id: 4, category_id: 1, name: 'Peanut Butter Power', slug: 'peanut-butter-power',
     description: 'Skippy peanut butter blended through oat milk oats, with banana and crushed peanuts.',
-    base_price: 16.0, image_url: 'https://images.unsplash.com/photo-1495214783159-3503fd1b572d?w=800&q=70',
+    base_price: 200.0, image_url: 'https://images.unsplash.com/photo-1495214783159-3503fd1b572d?w=800&q=70',
     is_active: 1, track_stock: 0, stock_qty: 0, sort_order: 4,
   },
   {
     id: 5, category_id: 3, name: 'Cold Brew Coffee', slug: 'cold-brew-coffee',
     description: '16-hour cold brew, served black over ice.',
-    base_price: 9.0, image_url: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&q=70',
+    base_price: 120.0, image_url: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&q=70',
     is_active: 1, track_stock: 0, stock_qty: 0, sort_order: 5,
   },
 ];
@@ -81,48 +84,48 @@ export const seedOptionGroups = () => [
 ];
 
 const OPTION_ROWS = [
-  // group, name, description, price_delta, sort_order
-  [1, 'Regular (350ml)', 'One jar, one breakfast.',              0.0,  1],
-  [1, 'Large (500ml)',   'For the seriously hungry.',            3.5,  2],
+  // group, name, description, price_delta (PHP), sort_order
+  [1, 'Regular (350ml)', 'One jar, one breakfast.',               0,  1],
+  [1, 'Large (500ml)',   'For the seriously hungry.',            45,  2],
 
-  [2, 'Fresh Milk',      'Full cream dairy milk.',               0.0,  1],
-  [2, 'Oat Milk',        'Barista-grade, naturally sweet.',      2.0,  2],
-  [2, 'Almond Milk',     'Light and nutty.',                     2.0,  3],
-  [2, 'Soy Milk',        'Extra protein, dairy free.',           1.5,  4],
-  [2, 'Coconut Milk',    'Rich and tropical.',                   2.5,  5],
-  [2, 'Greek Yogurt',    'Thick, tangy, high protein.',          3.0,  6],
+  [2, 'Fresh Milk',      'Full cream dairy milk.',                0,  1],
+  [2, 'Oat Milk',        'Barista-grade, naturally sweet.',      25,  2],
+  [2, 'Almond Milk',     'Light and nutty.',                     25,  3],
+  [2, 'Soy Milk',        'Extra protein, dairy free.',           20,  4],
+  [2, 'Coconut Milk',    'Rich and tropical.',                   30,  5],
+  [2, 'Greek Yogurt',    'Thick, tangy, high protein.',          40,  6],
 
-  [3, 'Banana',          'Sliced fresh each morning.',           1.5,  1],
-  [3, 'Mango',           'Sweet Harumanis cubes.',               2.5,  2],
-  [3, 'Dragon Fruit',    'Red-fleshed, mildly sweet.',           2.5,  3],
-  [3, 'Strawberry',      'Halved Cameron Highlands berries.',    3.0,  4],
-  [3, 'Blueberry',       'Whole, frozen-fresh.',                 3.0,  5],
-  [3, 'Kiwi',            'Tart green slices.',                   2.0,  6],
-  [3, 'Green Apple',     'Crisp diced apple.',                   1.5,  7],
+  [3, 'Banana',          'Sliced fresh each morning.',           20,  1],
+  [3, 'Mango',           'Sweet Carabao mango cubes.',           30,  2],
+  [3, 'Dragon Fruit',    'Red-fleshed, mildly sweet.',           30,  3],
+  [3, 'Strawberry',      'Halved Baguio berries.',               40,  4],
+  [3, 'Blueberry',       'Whole, frozen-fresh.',                 40,  5],
+  [3, 'Kiwi',            'Tart green slices.',                   25,  6],
+  [3, 'Green Apple',     'Crisp diced apple.',                   20,  7],
 
-  [4, 'Walnuts',         'Toasted halves.',                      2.5,  1],
-  [4, 'Almonds',         'Sliced and toasted.',                  2.0,  2],
-  [4, 'Crushed Peanuts', 'Roasted and lightly salted.',          1.5,  3],
-  [4, 'Chia Seeds',      'One tablespoon, soaked in.',           1.5,  4],
-  [4, 'Pumpkin Seeds',   'Dry-roasted pepitas.',                 1.5,  5],
-  [4, 'Flax Seeds',      'Ground, for the omega-3s.',            1.0,  6],
-  [4, 'Granola Crunch',  'House-baked oat cluster topping.',     3.0,  7],
+  [4, 'Walnuts',         'Toasted halves.',                      30,  1],
+  [4, 'Almonds',         'Sliced and toasted.',                  25,  2],
+  [4, 'Crushed Peanuts', 'Roasted and lightly salted.',          20,  3],
+  [4, 'Chia Seeds',      'One tablespoon, soaked in.',           20,  4],
+  [4, 'Pumpkin Seeds',   'Dry-roasted pepitas.',                 20,  5],
+  [4, 'Flax Seeds',      'Ground, for the omega-3s.',            15,  6],
+  [4, 'Granola Crunch',  'House-baked oat cluster topping.',     40,  7],
 
-  [5, 'Peanut Butter (Skippy)', 'Creamy, one generous scoop.',   3.0,  1],
-  [5, 'Almond Butter',   'Unsweetened, stone-ground.',           4.0,  2],
-  [5, 'Nutella',         'For when it is that kind of morning.', 3.5,  3],
-  [5, 'Biscoff Spread',  'Speculoos, swirled on top.',           3.5,  4],
+  [5, 'Peanut Butter (Skippy)', 'Creamy, one generous scoop.',   40,  1],
+  [5, 'Almond Butter',   'Unsweetened, stone-ground.',           50,  2],
+  [5, 'Nutella',         'For when it is that kind of morning.', 45,  3],
+  [5, 'Biscoff Spread',  'Speculoos, swirled on top.',           45,  4],
 
-  [6, 'Honey',           'Local wildflower honey.',              1.0,  1],
-  [6, 'Maple Syrup',     'Grade A amber.',                       2.0,  2],
-  [6, 'Gula Melaka',     'Palm sugar syrup.',                    1.5,  3],
-  [6, 'Date Syrup',      'Refined-sugar free.',                  2.0,  4],
+  [6, 'Honey',           'Local wildflower honey.',              15,  1],
+  [6, 'Maple Syrup',     'Grade A amber.',                       25,  2],
+  [6, 'Muscovado',       'Unrefined Negros cane sugar.',         20,  3],
+  [6, 'Date Syrup',      'Refined-sugar free.',                  25,  4],
 
-  [7, 'Protein Scoop',   'Unflavoured whey, 20g protein.',       4.5,  1],
-  [7, 'Cacao Nibs',      'Bitter dark chocolate crunch.',        2.0,  2],
-  [7, 'Toasted Coconut', 'Shaved and toasted.',                  1.5,  3],
-  [7, 'Cinnamon Dust',   'Ceylon cinnamon.',                     0.0,  4],
-  [7, 'Extra Oats',      'Half portion more of the base.',       2.0,  5],
+  [7, 'Protein Scoop',   'Unflavoured whey, 20g protein.',       55,  1],
+  [7, 'Cacao Nibs',      'Bitter dark chocolate crunch.',        25,  2],
+  [7, 'Toasted Coconut', 'Shaved and toasted.',                  20,  3],
+  [7, 'Cinnamon Dust',   'Ceylon cinnamon.',                      0,  4],
+  [7, 'Extra Oats',      'Half portion more of the base.',       25,  5],
 ];
 
 export const seedOptions = () =>
@@ -187,7 +190,7 @@ export function seedOrders(optionsById) {
     { product: 5, name: 'Cold Brew Coffee',       opts: [] },
   ];
 
-  const basePrice = { 1: 12.0, 2: 14.0, 3: 16.5, 4: 16.0, 5: 9.0 };
+  const basePrice = { 1: 150.0, 2: 175.0, 3: 210.0, 4: 200.0, 5: 120.0 };
   let orderId = 0;
 
   for (let day = 13; day >= 0; day -= 1) {
@@ -201,8 +204,8 @@ export function seedOrders(optionsById) {
       const unit = round2(basePrice[recipe.product] + optionsTotal);
       const lineTotal = round2(unit * qty);
       const isDelivery = (day + n) % 3 === 0;
-      const deliveryFee = isDelivery ? 6.0 : 0;
-      const tax = round2(lineTotal * 0.06);
+      const deliveryFee = isDelivery ? 79.0 : 0;
+      const tax = round2(lineTotal * 0.12);
       const createdAt = new Date(Date.now() - day * 86_400_000 - (n * 47 + 30) * 60_000).toISOString();
 
       orders.push({
@@ -212,18 +215,18 @@ export function seedOrders(optionsById) {
         status: 'completed',
         fulfillment_type: isDelivery ? 'delivery' : 'pickup',
         contact_name: 'Chloe Customer',
-        contact_phone: '+60123000003',
+        contact_phone: '+639170000003',
         contact_email: 'cust@orderko.test',
-        delivery_address: isDelivery ? 'Unit 8-3, Residensi Damai, Jalan Maarof, 59100 Kuala Lumpur' : null,
+        delivery_address: isDelivery ? 'Unit 8-3, One Rockwell, Rockwell Center, Makati City, 1210 Metro Manila' : null,
         delivery_notes: null,
-        delivery_lat: isDelivery ? 3.1421 : null,
-        delivery_lng: isDelivery ? 101.674 : null,
+        delivery_lat: isDelivery ? 14.5657 : null,
+        delivery_lng: isDelivery ? 121.0355 : null,
         subtotal: lineTotal,
         delivery_fee: deliveryFee,
         tax,
         discount: 0,
         total: round2(lineTotal + deliveryFee + tax),
-        currency: 'MYR',
+        currency: 'PHP',
         payment_method: isDelivery ? 'ewallet' : 'card',
         payment_status: 'paid',
         notes: null,
@@ -260,8 +263,8 @@ export function seedOrders(optionsById) {
     const optionsTotal = round2(chosen.reduce((s, o) => s + o.price_delta, 0));
     const unit = round2(basePrice[l.recipe.product] + optionsTotal);
     const isDelivery = l.type === 'delivery';
-    const deliveryFee = isDelivery ? 6.5 : 0;
-    const tax = round2(unit * 0.06);
+    const deliveryFee = isDelivery ? 85.0 : 0;
+    const tax = round2(unit * 0.12);
 
     orders.push({
       id: orderId,
@@ -270,18 +273,18 @@ export function seedOrders(optionsById) {
       status: l.status,
       fulfillment_type: l.type,
       contact_name: l.status === 'pending' ? 'Walk-in Guest' : 'Chloe Customer',
-      contact_phone: l.status === 'pending' ? '+60129998888' : '+60123000003',
+      contact_phone: l.status === 'pending' ? '+639179998888' : '+639170000003',
       contact_email: l.status === 'pending' ? null : 'cust@orderko.test',
-      delivery_address: isDelivery ? 'Level 21, Menara Binjai, Jalan Ampang, 50450 Kuala Lumpur' : null,
+      delivery_address: isDelivery ? 'Level 21, BGC Corporate Center, Bonifacio Global City, Taguig, 1634' : null,
       delivery_notes: isDelivery ? 'Leave with the guard house' : null,
-      delivery_lat: isDelivery ? 3.158 : null,
-      delivery_lng: isDelivery ? 101.715 : null,
+      delivery_lat: isDelivery ? 14.5507 : null,
+      delivery_lng: isDelivery ? 121.0494 : null,
       subtotal: unit,
       delivery_fee: deliveryFee,
       tax,
       discount: 0,
       total: round2(unit + deliveryFee + tax),
-      currency: 'MYR',
+      currency: 'PHP',
       payment_method: 'cash',
       payment_status: 'unpaid',
       notes: l.status === 'preparing' ? 'Allergic to walnuts — please double check' : null,
