@@ -91,7 +91,9 @@ app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     store: 'json',
-    data_file: config.dataFile,
+    // The full path names a user and a directory layout, which a public
+    // endpoint has no reason to publish. Only useful locally anyway.
+    ...(config.env === 'production' ? {} : { data_file: config.dataFile }),
     orders: db.orders.length,
     grab_mode: config.grab.mode,
     env: config.env,

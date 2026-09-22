@@ -24,7 +24,80 @@ how little there is to go wrong.
 
 ---
 
-## Option A — your own server (recommended)
+## Option A — a machine you own, via Cloudflare Tunnel
+
+Free, no account, no card, no open inbound ports, and it works on a laptop
+behind a home router. The GitHub Pages site stays the front door; the tunnel
+carries `/api` to whichever machine is running it.
+
+```bash
+npm install
+npm run serve:publish
+```
+
+That starts the API, opens a Cloudflare quick tunnel, prints the public URL,
+and repoints the Pages site at it. `npm run serve` does the same without
+touching the deployment.
+
+You need `cloudflared` on PATH — or at `~/bin/cloudflared.exe` on Windows,
+which is where the script looks. It is a single binary:
+
+```bash
+# Windows
+curl -Lo "$USERPROFILE/bin/cloudflared.exe" \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+# macOS
+brew install cloudflared
+# Linux
+curl -Lo cloudflared \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+  && chmod +x cloudflared
+```
+
+Before exposing anything, set real secrets in `apps/api/.env`:
+
+```ini
+NODE_ENV=production
+CORS_ORIGIN=https://rsmatic.github.io
+JWT_SECRET=<32 random bytes>
+SEED_PASSWORD=<not the one published in the README>
+```
+
+Then `npm run data:reset`, so the seeded accounts use your password rather than
+the public one. The API refuses to start in production with either default, but
+it cannot tell that an *existing* store was seeded with the old one.
+
+### The catch
+
+A quick tunnel's hostname changes every time it starts, so the Pages site has
+to be rebuilt to match — which is what `--publish` does, at about a minute per
+restart. Fine for a shop that starts the machine once and leaves it; irritating
+if you restart often.
+
+For a stable hostname, upgrade to a **named tunnel**. That needs a free
+Cloudflare account and a domain on Cloudflare, after which:
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create orderko
+cloudflared tunnel route dns orderko api.yourdomain.com
+cloudflared tunnel run --url http://localhost:4000 orderko
+```
+
+Now `VITE_API_BASE_URL` is `https://api.yourdomain.com/api` permanently and no
+rebuild is needed again. Run it as a service (`cloudflared service install`) so
+it survives reboots.
+
+### What this does and does not protect
+
+The tunnel exposes the API to the whole internet. `CORS_ORIGIN` stops *other
+websites* from reading it in a browser, but it does nothing against `curl` —
+CORS is a browser policy, not access control. What actually protects the data
+is authentication, which is why the seeded password matters.
+
+---
+
+## Option B — your own server, with Docker
 
 One command, no platform account, no per-service billing, and the API and web
 app share an origin so there is no CORS to configure. Any box with Docker:
@@ -70,7 +143,7 @@ Restore by stopping the API, putting a copy back, and starting it again.
 
 ---
 
-## Option B — Render
+## Option C — Render
 
 [`render.yaml`](render.yaml) is the blueprint: `New → Blueprint`, point it at
 this repo, and fill in the values marked `sync: false` (`PUBLIC_BASE_URL` and
@@ -85,7 +158,7 @@ Check current pricing before committing — it changes.
 
 ---
 
-## Option C — anywhere else
+## Option D — anywhere else
 
 The image is plain Docker, built from the repo root:
 
@@ -105,8 +178,8 @@ Run it with a volume on `/app/apps/api/data`, one replica, and these variables:
 | `DATA_FILE` | `data/store.json` |
 | `GRAB_MODE` | `sim` until you have GrabExpress credentials |
 
-Health check path is `/api/health`, which reports the store path and how many
-orders it holds.
+Health check path is `/api/health`, which reports how many orders the store
+holds.
 
 Fly.io, Railway and a bare `docker run` behind nginx all fit. Platforms that
 only offer ephemeral disks (most free tiers, Cloud Run, Lambda) do not, unless
