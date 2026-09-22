@@ -369,6 +369,52 @@ async function main() {
   check('a customer cannot change prices', customerEdit.status === 403, `got ${customerEdit.status}`);
 
   // --------------------------------------------------------------- admin
+  section('Google sign-in');
+  // A real Google token cannot be minted here, so this checks the refusals —
+  // the half that has to hold, because it is what stands between a forged
+  // token and somebody else's account.
+  await call('PUT', '/admin/settings', { token: adminToken, body: { google_client_id: '' } });
+  const unconfigured = await call('POST', '/auth/google', { body: { credential: 'x' } });
+  check('an unconfigured shop refuses', unconfigured.status === 400, `got ${unconfigured.status}`);
+
+  const CLIENT_ID = '123456-smoketest.apps.googleusercontent.com';
+  await call('PUT', '/admin/settings', { token: adminToken, body: { google_client_id: CLIENT_ID } });
+
+  const publicSettings = await call('GET', '/catalog/settings');
+  check('the client id is public, as Google intends',
+    publicSettings.body?.google_client_id === CLIENT_ID);
+
+  const noCredential = await call('POST', '/auth/google', { body: {} });
+  check('a missing credential is refused', noCredential.status === 400, `got ${noCredential.status}`);
+
+  const garbage = await call('POST', '/auth/google', { body: { credential: 'not.a.token' } });
+  check('a malformed token is refused', garbage.status === 401, `got ${garbage.status}`);
+
+  // Signed with our own key, claiming to be the admin.
+  const { generateKeyPairSync } = await import('node:crypto');
+  const jwtLib = (await import('jsonwebtoken')).default;
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const forged = jwtLib.sign(
+    { sub: 'attacker', email: 'admin@orderko.test', email_verified: true },
+    privateKey,
+    {
+      algorithm: 'RS256',
+      issuer: 'https://accounts.google.com',
+      audience: CLIENT_ID,
+      expiresIn: '1h',
+      keyid: 'not-a-google-key',
+    },
+  );
+  const forgedAttempt = await call('POST', '/auth/google', { body: { credential: forged } });
+  check('a self-signed token is refused', forgedAttempt.status === 401, `got ${forgedAttempt.status}`);
+  check('and it issued no session', !forgedAttempt.body?.token);
+
+  const usersAfter = await call('GET', '/admin/users', { token: adminToken });
+  check('no account was created by the attempts',
+    !usersAfter.body?.users?.some((u) => u.email === 'attacker@example.com'));
+
+  await call('PUT', '/admin/settings', { token: adminToken, body: { google_client_id: '' } });
+
   section('Email editing');
   const selfEdit = await call('PATCH', '/auth/me', {
     token: customerToken, body: { email: 'chloe.new@orderko.test' },

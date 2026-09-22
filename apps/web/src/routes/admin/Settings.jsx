@@ -25,6 +25,7 @@ export default function Settings() {
           logo_url: s.logo_url ?? '',
           hero_image_url: s.hero_image_url ?? '',
           show_included_label: s.show_included_label !== false,
+          google_client_id: s.google_client_id ?? '',
           currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
           pickup_address: s.pickup_address ?? '',
@@ -59,6 +60,7 @@ export default function Settings() {
         logo_url: form.logo_url,
         hero_image_url: form.hero_image_url,
         show_included_label: form.show_included_label,
+        google_client_id: form.google_client_id.trim(),
         currency: form.currency.toUpperCase(),
         tax_rate: Number(form.tax_rate) / 100,
         pickup_address: form.pickup_address,
@@ -195,6 +197,42 @@ export default function Settings() {
           </div>
         </section>
 
+        <section className="panel">
+          <div className="panel-head">
+            <h3>Customer sign-in</h3>
+            <span className={`badge ${form.google_client_id ? 'badge-leaf' : 'badge-neutral'}`}>
+              {form.google_client_id ? 'Google on' : 'Off'}
+            </span>
+          </div>
+          <div className="panel-body stack">
+            <Field
+              label="Google OAuth client ID"
+              hint="Leave empty to hide the Google button. This value is public by design — every visitor's browser receives it — so it is not a secret."
+            >
+              <input
+                className="input"
+                placeholder="1234567890-abcdefg.apps.googleusercontent.com"
+                value={form.google_client_id}
+                onChange={(e) => set({ google_client_id: e.target.value })}
+              />
+            </Field>
+
+            <details className="small muted">
+              <summary style={{ cursor: 'pointer' }}>Where do I get this?</summary>
+              <ol style={{ margin: '.5rem 0 0', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
+                <li>Open <strong>console.cloud.google.com</strong> and create a project. Free, no card.</li>
+                <li>APIs &amp; Services → <strong>OAuth consent screen</strong>: choose External, fill in the app name and your email, save.</li>
+                <li>Credentials → <strong>Create credentials → OAuth client ID</strong> → Web application.</li>
+                <li>Under <strong>Authorised JavaScript origins</strong> add exactly <code>https://rsmatic.github.io</code>, plus <code>http://localhost:5173</code> for local work.</li>
+                <li>Paste the client ID above and save.</li>
+              </ol>
+              <p style={{ marginBottom: 0 }}>
+                No redirect URI is needed: sign-in happens in the page, so a changing
+                API address does not matter.
+              </p>
+            </details>
+          </div>
+        </section>
         <section className="panel">
           <div className="panel-head"><h3>Delivery</h3></div>
           <div className="panel-body stack">

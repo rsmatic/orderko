@@ -589,3 +589,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .addr-results button:hover { background: var(--oat); }
 
 @media (max-width: 620px) { .addr-map { height: 260px; } }
+
+/* --------------------------------------------------------- google sign-in */
+
+.google-btn { display: flex; justify-content: center; min-height: 44px; }
+.google-btn:empty { display: none; }

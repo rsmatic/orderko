@@ -28,6 +28,9 @@ export const seedSettings = () => ({
   // Whether a free option says so. Worth showing when most choices cost
   // extra; just noise when a whole group is free.
   show_included_label: true,
+  // Paste from Google Cloud → Credentials → OAuth client ID. Public by
+  // design; empty simply hides the Google button.
+  google_client_id: '',
   currency: 'PHP',
   // Philippine VAT. Change it in Admin → Shop settings if your registration
   // differs — a small shop below the VAT threshold may not charge it at all.

@@ -175,6 +175,30 @@ Set it in Admin → Shop settings; 0 removes the limit.
 
 ---
 
+## Customer sign-in
+
+A customer can order as a guest, or sign in to keep their order history.
+Alongside email and password there is **Sign in with Google**, which appears
+only once a client id is set in Admin → Shop settings.
+
+The account is created when Google vouches for the address, not when someone
+types one at checkout — typing an address proves nothing about owning it. An
+address Google reports as unverified is refused for the same reason, and an
+existing account with that address is signed into rather than duplicated.
+
+The browser receives a signed token from Google and posts it to
+`POST /auth/google`; [`google-auth.js`](apps/api/src/google-auth.js) checks the
+signature against Google's published keys, the issuer, and that the token was
+minted for **this** shop's client id, before anything in it is believed. Node
+builds a verifying key straight from a JWK, so this needs no extra dependency.
+
+Setup is free and needs no card: a Google Cloud project, an OAuth client id,
+and `https://rsmatic.github.io` as an authorised JavaScript origin. No redirect
+URI — sign-in happens in the page, so a changing API address does not matter.
+The client id is public by design and is served in `/catalog/settings`.
+
+---
+
 ## How money is handled
 
 The browser never sets a price. It sends product ids, option ids and quantities;
@@ -257,9 +281,9 @@ Everything is under `/api`. Staff endpoints take `Authorization: Bearer <jwt>`.
 
 | Method | Path | Who |
 |---|---|---|
-| `POST` | `/auth/register`, `/auth/login` | anyone |
+| `POST` | `/auth/register`, `/auth/login`, `/auth/google` | anyone |
 | `GET` `PATCH` | `/auth/me` | signed in |
-| `GET` | `/catalog/menu` | anyone (staff also see hidden rows) |
+| `GET` | `/catalog/menu`, `/catalog/settings` | anyone (staff also see hidden rows) |
 | `POST` `PATCH` `DELETE` | `/catalog/products`, `/catalog/options`, `/catalog/option-groups`, `/catalog/categories` | manager, admin |
 | `POST` | `/orders/quote` | anyone |
 | `POST` | `/orders` | anyone (guest checkout) |

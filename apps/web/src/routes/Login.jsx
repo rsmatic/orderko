@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Alert, Field, Spinner } from '../components/ui';
 import DemoBanner from '../components/DemoBanner';
+import GoogleSignIn from '../components/GoogleSignIn';
 
 const DEMO = [
   { role: 'Admin',    email: 'admin@orderko.test' },
@@ -64,6 +65,8 @@ export default function Login() {
             <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
               {busy ? <Spinner /> : 'Sign in'}
             </button>
+
+            <GoogleSignIn text="signin_with" onSignedIn={(u) => navigate(landingFor(u.role), { replace: true })} />
 
             <div className="small center muted">
               No account? <Link to="/register" className="strong">Create one</Link>
@@ -158,6 +161,8 @@ export function Register() {
             <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
               {busy ? <Spinner /> : 'Create account'}
             </button>
+
+            <GoogleSignIn text="signup_with" onSignedIn={() => navigate('/', { replace: true })} />
 
             <div className="small center muted">
               Already have one? <Link to="/login" className="strong">Sign in</Link>

@@ -121,8 +121,10 @@ export async function freshState({
  * @param {function} opts.persist  called after any handler that mutated state
  * @param {object}   opts.auth     { hashPassword, verifyPassword, signToken, verifyToken }
  * @param {object}   opts.delivery { quote, book, track, cancel, advance? }
+ * @param {object}   [opts.googleAuth] { verify(credential, clientId) } — absent
+ *                   when Google sign-in is not available.
  */
-export function createBackend({ state, persist, auth, delivery }) {
+export function createBackend({ state, persist, auth, delivery, googleAuth }) {
   let db = state;
 
   const nextId = (key) => {
@@ -218,6 +220,7 @@ export function createBackend({ state, persist, auth, delivery }) {
         logo_url: s.logo_url ?? '',
         hero_image_url: s.hero_image_url ?? '',
         show_included_label: s.show_included_label !== false,
+        google_client_id: s.google_client_id ?? '',
         currency: s.currency,
         tax_rate: Number(s.tax_rate),
         pickup_address: s.pickup_address,
@@ -390,6 +393,56 @@ export function createBackend({ state, persist, auth, delivery }) {
       if (body.phone !== undefined) user.phone = body.phone;
       if (body.password) user.password_hash = await auth.hashPassword(body.password);
       return { user: publicUser(user) };
+    }],
+
+    /**
+     * Sign in with Google.
+     *
+     * The account is created here rather than when someone types an address
+     * at checkout, because typing an address proves nothing — Google vouching
+     * for it does. An unverified Google address is refused for the same
+     * reason.
+     *
+     * An existing account with that address is signed into, not duplicated:
+     * Google confirming the address means this is the same person, whether
+     * they had a password or not.
+     */
+    ['POST', /^\/auth\/google$/, async (m, body) => {
+      if (!googleAuth?.verify) throw bad('Google sign-in is not configured for this shop');
+      if (!body.credential) throw bad('Missing Google credential');
+
+      const profile = await googleAuth.verify(body.credential, db.settings.google_client_id);
+      if (!profile?.email) throw unauthorized('Google did not return an email address');
+      if (!profile.email_verified) {
+        throw unauthorized('That Google account has an unverified email address');
+      }
+
+      const email = String(profile.email).toLowerCase().trim();
+      let user = db.users.find((u) => u.email === email);
+
+      if (user) {
+        if (!user.is_active) throw unauthorized('This account has been deactivated');
+        // Remember the Google identity so the link survives an email change.
+        if (!user.google_sub) user.google_sub = profile.sub;
+      } else {
+        user = {
+          id: nextId('user'),
+          email,
+          // No password: this account is reached through Google until its
+          // owner sets one. verifyPassword refuses a non-bcrypt hash.
+          password_hash: null,
+          google_sub: profile.sub,
+          name: profile.name || email.split('@')[0],
+          phone: null,
+          role: 'customer',
+          is_active: 1,
+          created_at: nowIso(),
+        };
+        db.users.push(user);
+        audit(user, 'user.google_signup', 'user', user.id, { email });
+      }
+
+      return { token: await auth.signToken(user), user: publicUser(user), created: !user.password_hash };
     }],
 
     // ------------------------------------------------------------- catalog
@@ -1076,6 +1129,7 @@ export function createBackend({ state, persist, auth, delivery }) {
       requireRole(user, 'admin');
       const allowed = [
         'shop_name', 'logo_url', 'hero_image_url', 'show_included_label',
+        'google_client_id',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
         'max_delivery_km',

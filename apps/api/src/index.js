@@ -5,6 +5,7 @@ import { createBackend, AppError } from '@overnight-oats/core';
 import { config } from './config.js';
 import { createJsonStore } from './persistence.js';
 import { auth, createDelivery } from './adapters.js';
+import { googleAuth } from './google-auth.js';
 import { mapStatus } from './grab-live.js';
 
 const store = createJsonStore({
@@ -22,6 +23,7 @@ const backend = createBackend({
   persist: store.persist,
   auth,
   delivery,
+  googleAuth,
 });
 
 const app = express();

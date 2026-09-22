@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Alert, Field, Spinner, Empty } from '../../components/ui';
 import AddressPicker from '../../components/AddressPicker';
 import { useShop } from '../../context/ShopContext';
+import GoogleSignIn from '../../components/GoogleSignIn';
 
 export default function Checkout() {
   const cart = useCart();
@@ -260,9 +261,19 @@ export default function Checkout() {
           </section>
 
           {!user ? (
-            <Alert kind="info">
-              Ordering as a guest. <Link to="/login" className="strong">Sign in</Link> to keep your order history.
-            </Alert>
+            <section className="panel">
+              <div className="panel-head"><h3>Keep your order history?</h3></div>
+              <div className="panel-body stack-s">
+                <div className="small muted">
+                  Ordering as a guest works fine — this only saves your orders so you can
+                  find them later.
+                </div>
+                <GoogleSignIn />
+                <div className="small muted">
+                  Or <Link to="/login" className="strong">sign in</Link> with a password.
+                </div>
+              </div>
+            </section>
           ) : null}
         </div>
 

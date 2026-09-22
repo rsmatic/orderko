@@ -32,6 +32,13 @@ export function AuthProvider({ children }) {
     return res.user;
   }, []);
 
+  /** Accepts a session issued by a route other than password login. */
+  const adoptSession = useCallback((token, nextUser) => {
+    tokenStore.set(token);
+    setUser(nextUser);
+    return nextUser;
+  }, []);
+
   const logout = useCallback(() => {
     tokenStore.set(null);
     setUser(null);
@@ -43,11 +50,12 @@ export function AuthProvider({ children }) {
       loading,
       login,
       register,
+      adoptSession,
       logout,
       isStaff: user?.role === 'admin' || user?.role === 'manager',
       isAdmin: user?.role === 'admin',
     }),
-    [user, loading, login, register, logout],
+    [user, loading, login, register, adoptSession, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
