@@ -60,8 +60,9 @@ async function main() {
   section('Health');
   const health = await call('GET', '/health');
   check('GET /health responds 200', health.status === 200, `got ${health.status}`);
-  check('database is reachable', health.body?.db === 'up', JSON.stringify(health.body));
-  console.log(`  (grab mode: ${health.body?.grab_mode})`);
+  check('the JSON store is loaded', health.body?.store === 'json', JSON.stringify(health.body));
+  check('the store has seeded orders', Number(health.body?.orders) > 0);
+  console.log(`  (grab mode: ${health.body?.grab_mode}, store: ${health.body?.data_file})`);
 
   // ---------------------------------------------------------------- auth
   section('Authentication');
@@ -275,7 +276,7 @@ async function main() {
   check('the order moved to dispatched', afterBooking.body?.status === 'dispatched',
     afterBooking.body?.status);
 
-  if (health.body?.grab_mode === 'mock') {
+  if (health.body?.grab_mode === 'sim') {
     const states = [];
     for (let i = 0; i < 3; i += 1) {
       const advanced = await call('POST', `/delivery/simulate/${orderId}/advance`, { token: managerToken });

@@ -1,4 +1,5 @@
 node_modules/
+apps/api/data/
 dist/
 .env
 .env.local

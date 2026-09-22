@@ -3,10 +3,13 @@
 #   New → Blueprint → point at this repo. Render reads this file, then asks
 #   for the values marked sync:false below.
 #
-# Render has no managed MySQL, so DB_* must point at a MySQL 8 you host
-# elsewhere (Railway, Aiven, TiDB Serverless, your own server). If you would
-# rather keep the API and the database in one place, skip this file and deploy
-# the Dockerfile to Railway instead — see README § Deploying.
+# There is no database service: the store is a JSON file on the disk mounted
+# below. That disk is what makes the deployment durable — without it every
+# order is lost on the next deploy.
+#
+# NOTE: Render's free instance type does not support disks, and its filesystem
+# is ephemeral. Use a paid instance type, or deploy the compose stack on your
+# own server instead (see DEPLOY.md).
 
 services:
   - type: web
@@ -14,41 +17,48 @@ services:
     runtime: docker
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
-    plan: free
+    plan: starter
     healthCheckPath: /api/health
+
+    # A JSON file store has no cross-process locking, so exactly one instance.
+    numInstances: 1
+
+    disk:
+      name: orderko-data
+      mountPath: /app/apps/api/data
+      sizeGB: 1
+
     envVars:
       - key: NODE_ENV
         value: production
 
       # Render injects PORT; config.js reads it.
 
-      # Must list the exact origin serving the frontend, scheme included and
-      # no trailing slash. Comma-separate to allow more than one.
+      - key: DATA_FILE
+        value: data/store.json
+
+      # The exact origin serving the frontend, scheme included, no trailing
+      # slash. Comma-separate to allow more than one.
       - key: CORS_ORIGIN
         value: https://rsmatic.github.io
 
-      # Public URL of this service. The mock Grab provider builds its tracking
-      # links from it.
+      # This service's own public URL; simulated tracking links use it.
       - key: PUBLIC_BASE_URL
         sync: false
 
       - key: JWT_SECRET
         generateValue: true
 
-      - key: DB_HOST
+      # Must not be the documented default — the API refuses to boot with it
+      # in production. Write down what you set: it is the seeded admin login.
+      - key: SEED_PASSWORD
         sync: false
-      - key: DB_PORT
-        value: 3306
-      - key: DB_USER
-        sync: false
-      - key: DB_PASSWORD
-        sync: false
-      - key: DB_NAME
-        value: overnight_oats
 
-      # Leave as mock until you have GrabExpress partner credentials.
+      # Leave as sim until you have GrabExpress partner credentials.
       - key: GRAB_MODE
-        value: mock
+        value: sim
+      - key: GRAB_AUTO_ADVANCE_SECONDS
+        value: 25
       - key: GRAB_CLIENT_ID
         sync: false
       - key: GRAB_CLIENT_SECRET

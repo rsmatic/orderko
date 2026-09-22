@@ -8,35 +8,16 @@ on:
 
 jobs:
   test:
-    name: Build and smoke-test against MySQL
+    name: Build and smoke-test
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: ci_root_password
-          MYSQL_DATABASE: overnight_oats
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci_root_password"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=20
-
     env:
-      DB_HOST: 127.0.0.1
-      DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: ci_root_password
-      DB_NAME: overnight_oats
       JWT_SECRET: ci-only-secret
       SEED_PASSWORD: Password123!
-      GRAB_MODE: mock
-      # Keep the simulated driver slow enough that the test drives it by hand
-      # through the advance endpoint, rather than racing the timer.
-      GRAB_MOCK_TICK_SECONDS: 3600
+      GRAB_MODE: sim
+      # No timer: the smoke test drives the simulated driver itself, and an
+      # auto-advance running alongside would race its assertions.
+      GRAB_AUTO_ADVANCE_SECONDS: 0
       PORT: 4000
 
     steps:
@@ -52,13 +33,10 @@ jobs:
       - name: Build the web app
         run: npm run build --workspace apps/web
 
-      # The demo backend duplicates the API's rules so the published site works
-      # without a server. This fails if the two drift apart.
-      - name: Test the demo backend
+      # The browser demo and the API run the same @overnight-oats/core. This
+      # exercises it through the demo's adapters.
+      - name: Test the core through the demo adapters
         run: npm run test:demo
-
-      - name: Create and seed the database
-        run: npm run db:setup
 
       - name: Start the API
         run: |
@@ -73,8 +51,23 @@ jobs:
           echo "API did not come up in time"
           exit 1
 
+      # Same suite, through HTTP against the JSON store.
       - name: Smoke test
         run: npm run smoke
+
+      - name: Data survives a restart
+        run: |
+          BEFORE=$(curl -s http://localhost:4000/api/health | node -pe "JSON.parse(require('fs').readFileSync(0)).orders")
+          pkill -f "apps/api/src/index.js" || pkill -f "src/index.js" || true
+          sleep 2
+          npm run start --workspace apps/api &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4000/api/health > /dev/null && break
+            sleep 1
+          done
+          AFTER=$(curl -s http://localhost:4000/api/health | node -pe "JSON.parse(require('fs').readFileSync(0)).orders")
+          echo "orders before=$BEFORE after=$AFTER"
+          test "$BEFORE" = "$AFTER"
 
       - name: Build the API image
         run: docker build -f apps/api/Dockerfile -t orderko-api .
@@ -83,10 +76,7 @@ jobs:
         run: docker build -f apps/web/Dockerfile -t orderko-web .
 
       - name: Validate the compose stack
-        # Dummy secrets: this only resolves and type-checks the file, nothing runs.
         env:
-          MYSQL_ROOT_PASSWORD: ci
-          DB_PASSWORD: ci
           JWT_SECRET: ci
           SEED_PASSWORD: ci-not-the-default
         run: docker compose config --quiet && echo "compose file is valid"

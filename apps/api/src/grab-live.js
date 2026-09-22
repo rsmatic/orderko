@@ -1,5 +1,5 @@
-import { config } from '../../config.js';
-import { HttpError } from '../../middleware/errors.js';
+import { config } from './config.js';
+import { AppError } from '@overnight-oats/core';
 
 /**
  * GrabExpress partner API client.
@@ -49,7 +49,7 @@ async function getAccessToken() {
     }),
   });
   if (!res.ok) {
-    throw new HttpError(502, `Grab auth failed (${res.status})`, await res.text());
+    throw new AppError(502, `Grab auth failed (${res.status})`, await res.text());
   }
   const body = await res.json();
   tokenCache = {
@@ -73,7 +73,7 @@ async function grabFetch(path, { method = 'GET', body } = {}) {
   const text = await res.text();
   const payload = text ? JSON.parse(text) : {};
   if (!res.ok) {
-    throw new HttpError(
+    throw new AppError(
       res.status === 400 ? 400 : 502,
       payload?.reason || payload?.message || `Grab API error (${res.status})`,
       payload,
@@ -98,7 +98,7 @@ export function createLiveProvider() {
   if (!config.grab.clientId || !config.grab.clientSecret) {
     throw new Error(
       'GRAB_MODE=live requires GRAB_CLIENT_ID and GRAB_CLIENT_SECRET. ' +
-        'Set GRAB_MODE=mock to run without Grab credentials.',
+        'Set GRAB_MODE=sim to run without Grab credentials.',
     );
   }
 
@@ -119,7 +119,7 @@ export function createLiveProvider() {
       });
 
       const best = payload.quotes?.[0];
-      if (!best) throw new HttpError(502, 'Grab returned no quotes for this address');
+      if (!best) throw new AppError(502, 'Grab returned no quotes for this address');
 
       return {
         quote_id: best.serviceQuota?.quoteID ?? best.quoteID ?? null,

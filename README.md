@@ -7,24 +7,35 @@ an admin dashboard for people, settings and reporting, and Grab driver
 dispatch for delivery orders.
 
 ```
-MySQL 8  ←  Express API (Node 20)  ←  React 18 SPA (Vite)
-                    │
-                    └─ Grab delivery adapter (mock ⇄ live GrabExpress)
+                 ┌─ Express API (Node 20) ─ JSON file store
+@overnight-oats/core ┤
+                 └─ React 18 SPA (Vite) ─ browser demo (localStorage)
+                          │
+                          └─ Grab delivery adapter (sim ⇄ live GrabExpress)
 ```
+
+One implementation of the rules, two places it runs. `packages/core` holds the
+route table, pricing and order lifecycle with no I/O of its own; storage,
+password hashing, token signing and the delivery provider all arrive as
+adapters. The server supplies a JSON file, bcrypt, JWT and the real Grab
+client; the browser demo supplies localStorage and throwaway equivalents.
+
+**There is no database server.** The store is a single JSON file, written
+atomically and serialised through one write queue. That suits a shop doing
+hundreds of orders a day and assumes a single process — see
+[DEPLOY.md](DEPLOY.md) for the limits.
 
 ---
 
 ## Quick start
 
 ```bash
-npm install                 # installs both workspaces
-
-cp apps/api/.env.example apps/api/.env
-#   then set DB_PASSWORD (and DB_USER if not root)
-
-npm run db:setup            # creates the database, loads schema + seed data
+npm install
 npm run dev                 # API on :4000, web on :5173
 ```
+
+That is the whole setup. No database to install, no credentials to configure —
+the store seeds itself at `apps/api/data/store.json` on first run.
 
 Open <http://localhost:5173>.
 
@@ -39,8 +50,9 @@ Customers can also order as guests — no account needed.
 ### Other commands
 
 ```bash
-npm run db:reset      # drop and rebuild the database (destroys all data)
+npm run data:reset    # throw away the store and reseed (destroys all data)
 npm run smoke         # end-to-end API check; needs the API running
+npm run test:demo     # same checks against the core's browser adapters
 npm run build         # production build of the web app
 ```
 
@@ -52,8 +64,8 @@ One React app, three route trees, gated by role.
 
 ### Customer — `/`
 
-The jar builder is the centre of it. Option groups come from the database, so
-the rules are data, not code:
+The jar builder is the centre of it. Option groups come from the store, so the
+rules are data, not code:
 
 | Group | Style | Rule |
 |---|---|---|
@@ -99,14 +111,18 @@ Everything a manager can do, plus:
 ## Grab delivery
 
 The delivery layer is an adapter with two interchangeable providers behind one
-interface (`quote` / `book` / `track` / `cancel`). Nothing outside
-`src/services/grab/` knows which is in play.
+interface (`quote` / `book` / `track` / `cancel`). The core never knows which
+is in play.
 
-**`GRAB_MODE=mock`** (the default) simulates a driver locally: a booking walks
-through `allocating → picking_up → in_delivery → completed` on a timer, assigns
-a driver with a name and plate, moves their position, and feeds each transition
-through the same handler the real webhook uses. Distance-based fees. Staff can
-skip the timer with the **Advance (mock)** button in the order detail.
+**`GRAB_MODE=sim`** (the default) simulates a driver: a booking walks through
+`allocating → picking_up → in_delivery → completed`, assigns a driver with a
+name and plate, and feeds each transition through the same handler the real
+webhook uses. Distance-based fees. Staff can push it along with the **Advance**
+button, and `GRAB_AUTO_ADVANCE_SECONDS` moves it on a timer.
+
+The simulation keeps no state of its own — `advance` is told the current status
+and returns the next one — so progress lives in the store and a restart resumes
+rather than stalling.
 
 **`GRAB_MODE=live`** talks to the GrabExpress partner API. Set:
 
@@ -147,51 +163,42 @@ exactly what `POST /api/orders` will charge. The delivery fee is re-quoted from
 the provider at checkout, so a tampered client can't discount its own delivery.
 
 Tax applies to goods, not to the delivery fee. Item names and prices are
-snapshotted onto `order_items` at checkout, so changing a price later doesn't
+snapshotted onto the order line at checkout, so changing a price later doesn't
 rewrite history. Products and options that appear in past orders are deactivated
-rather than deleted.
+rather than deleted — there is no foreign key to enforce that now, so the core
+checks it explicitly before any delete.
 
 ---
 
 ## Layout
 
 ```
-db/
-  schema.sql              14 tables
-  seed.sql                accounts, catalog, sample orders
-
-apps/api/
+packages/core/            the application, with no I/O of its own
   src/
-    index.js              express app, route mounting
-    config.js             env → typed config
-    db.js                 mysql2 pool, query/execute/transaction
-    middleware/
-      auth.js             JWT, attachUser, requireRole
-      errors.js           HttpError, asyncHandler, error middleware
-    routes/
-      auth.js             register, login, me
-      catalog.js          menu (public), product/option/group CRUD (staff)
-      orders.js           quote, checkout, listing, queue, status, payment
-      delivery.js         quote, book, cancel, track + the Grab webhook
-      admin.js            users, settings, stats, audit
-    services/
-      pricing.js          the single source of truth for what a cart costs
-      grab/
-        index.js          provider selection, persistence, order sync
-        mock.js           simulated driver
-        live.js           GrabExpress client
-    lib/
-      settings.js         cached key/value shop config
-      audit.js            audit trail
-  scripts/
-    setup-db.js           create + migrate + seed
-    smoke-test.js         end-to-end API check
+    seed.js               accounts, catalog, two weeks of sample orders
+    rules.js              pricing, totals, transitions, AppError
+    backend.js            the route table; takes storage/auth/delivery adapters
+    delivery-sim.js       stateless driver simulation
+    index.js
 
-apps/web/
+apps/api/                 the core over HTTP, backed by a JSON file
+  src/
+    index.js              express, webhook, health, sim ticker
+    config.js             env → typed config
+    persistence.js        atomic, serialised JSON file store
+    adapters.js           bcrypt + JWT, and provider selection
+    grab-live.js          GrabExpress partner client
+  scripts/
+    reset-data.js         throw away the store and reseed
+    smoke-test.js         end-to-end check over HTTP
+  data/store.json         the database (gitignored, seeds itself)
+
+apps/web/                 React SPA
   src/
     App.jsx               all routing and role gates
     context/              AuthContext, CartContext
-    components/           ui.jsx, OrderDetail.jsx
+    components/           ui.jsx, OrderDetail.jsx, DemoBanner.jsx
+    demo/backend.js       the core over localStorage
     routes/
       customer/           StoreLayout, Menu, Customizer, CartDrawer,
                           Checkout, OrderTracking
@@ -200,7 +207,24 @@ apps/web/
       DashboardLayout.jsx shared dashboard chrome
       Login.jsx           sign in / register
     styles.css            one stylesheet for all three surfaces
+  scripts/
+    demo-test.mjs         the same checks, through the browser adapters
+  Dockerfile, Caddyfile   build + serve, proxying /api
+
+docker-compose.yml        api + web, one command
+render.yaml               Render blueprint
+DEPLOY.md                 deployment runbook
 ```
+
+### Why a shared core
+
+The browser demo and the API used to be separate implementations of the same
+rules, kept honest only by a test. They are now one module with different
+adapters, so a rule cannot be changed in one place and forgotten in the other.
+
+Both test suites still exist because the adapters differ and both paths matter:
+`npm run smoke` drives the real server over HTTP, `npm run test:demo` drives
+the browser adapters in-process.
 
 ---
 
@@ -225,7 +249,7 @@ Everything is under `/api`. Staff endpoints take `Authorization: Bearer <jwt>`.
 | `POST` | `/delivery/quote` | anyone |
 | `POST` | `/delivery/orders/:id/book`, `/delivery/orders/:id/cancel` | manager, admin |
 | `GET` | `/delivery/orders/:id` | owner or staff |
-| `POST` | `/delivery/simulate/:id/advance` | manager, admin (mock mode only) |
+| `POST` | `/delivery/simulate/:id/advance` | manager, admin (sim mode only) |
 | `POST` | `/webhooks/grab` | Grab (HMAC-signed) |
 | `GET` `POST` `PATCH` | `/admin/users` | admin |
 | `GET` | `/admin/settings` | manager, admin |
@@ -241,135 +265,85 @@ pending → confirmed → preparing → ready ─┬→ dispatched → delivered
 ```
 
 Any state before `completed` can go to `cancelled`. Illegal jumps are refused
-with a 400 listing what's allowed. Every transition is written to
-`order_status_history`.
+with a 400 listing what's allowed. Every transition is appended to the order’s history.
 
 ---
 
 ## Deploying
 
-**[DEPLOY.md](DEPLOY.md) is the runbook** — Railway, your own server, or
-Render, with copy-paste commands and a pre-launch checklist. The rest of this
-section is the background it assumes.
-
-Want the whole stack on one machine right now?
+**[DEPLOY.md](DEPLOY.md) is the runbook.** The short version:
 
 ```bash
-cp .env.compose.example .env     # then edit the secrets
+cp .env.compose.example .env     # set JWT_SECRET and SEED_PASSWORD
 docker compose up -d --build
-docker compose run --rm api npm run db:setup
 ```
 
-That runs MySQL, the API, and the web app behind Caddy, which serves the app
-and proxies `/api` to the API on the same origin — so there is no CORS to
-configure and deep links return 200 rather than Pages' 404.
+That runs the API and the web app behind Caddy, which serves the bundle and
+proxies `/api` on the same origin — so there is no CORS to configure and deep
+links return 200 rather than Pages' 404. The store seeds itself on first boot.
 
-The frontend is static and goes on GitHub Pages. The API and MySQL cannot —
-Pages serves files, it does not run processes — so they go on a host that runs
-containers.
+There is no database service to provision. What the deployment does need is a
+**persistent disk** for `data/store.json`: on an ephemeral container filesystem
+every order vanishes on the next deploy. The compose stack mounts a volume;
+`render.yaml` declares a disk.
 
-```
-GitHub Pages ──► React SPA      https://rsmatic.github.io/orderko/
-                     │ VITE_API_BASE_URL
-                     ▼
-Render/Railway ──► Express API  https://<your-api>/api
-                     │ DB_*
-                     ▼
-Managed MySQL 8 ──► overnight_oats
-```
+### What the JSON store costs you
 
-### 1. MySQL
+Worth knowing before it takes real orders:
 
-Create a MySQL 8 database anywhere that gives you a host, port, user, password
-and a TCP connection — Railway, Aiven and TiDB Serverless all work, as does a
-database on your own server. (Free tiers move around; check current terms.)
-
-Load the schema from your laptop, pointing the setup script at the remote:
+- **One process.** No cross-process locking, so two replicas would overwrite
+  each other. Both deployment configs pin a single instance.
+- **Whole-file writes.** Every change rewrites the file, debounced and
+  serialised through one queue. Fine for hundreds of orders a day; not for
+  thousands.
+- **No referential integrity.** The core checks before deleting anything that
+  appears in an order, since nothing else will.
+- **Backups are a file copy** — which is also the upside:
 
 ```bash
-DB_HOST=... DB_PORT=... DB_USER=... DB_PASSWORD=... DB_NAME=overnight_oats \
-  npm run db:setup
+docker compose cp api:/app/apps/api/data/store.json ./backup-$(date +%F).json
 ```
-
-Then change the seeded passwords — they are documented in this file, so treat
-them as public.
-
-### 2. API
-
-The API ships as a container. Build context is the **repo root**, not
-`apps/api`, because the image keeps the monorepo layout:
-
-```bash
-docker build -f apps/api/Dockerfile -t orderko-api .
-```
-
-**Render** — `New → Blueprint`, point it at this repo, and it reads
-[`render.yaml`](render.yaml). Fill in the values marked `sync: false` (the DB_*
-set and `PUBLIC_BASE_URL`); `JWT_SECRET` is generated for you.
-
-**Railway / Fly / anything else** — deploy the Dockerfile and set the same
-environment variables by hand. Health check path is `/api/health`, which
-reports whether the database is reachable, not just whether the process is up.
-
-Either way these matter:
-
-| Variable | Value |
-|---|---|
-| `CORS_ORIGIN` | `https://rsmatic.github.io` — exact origin, no trailing slash |
-| `PUBLIC_BASE_URL` | the API's own public URL |
-| `JWT_SECRET` | a real secret; the API refuses to boot in production without one |
-| `DB_*` | your MySQL |
-| `GRAB_MODE` | `mock` until you have GrabExpress credentials |
 
 ### Demo mode
 
-Pages cannot run the API, so a build with no `VITE_API_BASE_URL` falls back to
-an in-browser backend
+GitHub Pages serves files and cannot run the API at all, so a build with no
+`VITE_API_BASE_URL` falls back to running the core in the browser
 ([`apps/web/src/demo/`](apps/web/src/demo/)) rather than publishing a site that
-cannot do anything. It answers the same routes with the same shapes and
-enforces the same rules — option min/max, availability, the order lifecycle,
-role boundaries, and a simulated Grab driver — with state in `localStorage`, so
-it is per-visitor and disposable.
+cannot do anything. Same rules, same routes; `localStorage` instead of a file,
+and throwaway credentials instead of bcrypt and JWT — which is exactly why it
+is demo-only.
 
-This is what is live at **https://rsmatic.github.io/orderko/** today. A banner
-says so, and offers a reset.
+This is what is live at **<https://rsmatic.github.io/orderko/>** today. A banner
+says so and offers a reset. Setting `VITE_API_BASE_URL` disables it and drops
+the chunk from the bundle entirely.
 
-`npm run test:demo` checks the demo against the same expectations the API's
-smoke test uses; CI runs it, so the two cannot quietly drift apart. Setting
-`VITE_API_BASE_URL` disables demo mode and drops the chunk from the bundle.
+### Frontend on Pages
 
-### 3. Frontend on Pages
-
-Two one-time settings in the repo:
+Two one-time settings, both already done for this repo:
 
 1. **Settings → Pages → Source: GitHub Actions.**
-2. **Settings → Secrets and variables → Actions → Variables → New variable:**
-   `VITE_API_BASE_URL` = `https://<your-api>/api` (include the `/api`).
+2. **Settings → Secrets and variables → Actions → Variables:**
+   `VITE_API_BASE_URL` = `https://<your-api>/api`, once you have one.
 
 Push to `main` and [`deploy-pages.yml`](.github/workflows/deploy-pages.yml)
-builds and publishes. Without the variable the site still deploys, but every
-request fails with a message saying so — the workflow also logs a warning.
-
-The workflow derives `VITE_BASE` from the repository name, because a project
-site is served from `/<repo>/`. It also copies `index.html` to `404.html` so
-deep links survive (Pages has no history fallback), and writes `.nojekyll`.
-
-> **On the URL:** the published path is the repository name, so renaming the
-> repo moves the site with no workflow change. `rsmatic/orderko` publishes to
-> `https://rsmatic.github.io/orderko/`.
+builds and publishes. It derives the base path from the repository name, copies
+`index.html` to `404.html` so deep links survive, and writes `.nojekyll`.
 
 ### CI
 
 [`ci.yml`](.github/workflows/ci.yml) runs on every push: builds the web app,
-stands up MySQL 8, loads the schema, boots the API, runs the smoke test against
-it, and builds the API image.
+runs the core's checks through the browser adapters, boots the API and runs the
+smoke test over HTTP, restarts it to prove data survives, then builds both
+Docker images and validates the compose file.
+
+---
 
 ## Other notes
 
-- Put MySQL behind a dedicated user, not `root`.
+- Set a real `JWT_SECRET` and a real `SEED_PASSWORD` — the API refuses to start
+  in production with either default.
 - Set `GRAB_WEBHOOK_SECRET`; without it the webhook signature check is skipped.
-- The mock provider keeps simulation state in memory, so a restart stops
-  in-flight simulations. Rows already in `deliveries` are unaffected. This is
-  mock-only — the live provider is stateless and driven by webhooks.
-- A free-tier API that spins down when idle will make the first request after a
-  pause slow or fail; the frontend surfaces that as "it may still be waking up".
+- The seeded passwords are documented above, so treat them as public and change
+  them after first login.
+- `data/store.json` is gitignored. Do not commit one: it contains password
+  hashes and customer contact details.

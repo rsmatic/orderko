@@ -7,10 +7,15 @@
 
 export const SEED_PASSWORD = 'Password123!';
 
+/**
+ * Seeded accounts carry no credential. The backend fills `password_hash`
+ * using whichever auth adapter it was given, so the server stores bcrypt
+ * hashes and no plaintext password is ever written to disk.
+ */
 export const seedUsers = () => [
-  { id: 1, email: 'admin@orderko.test',   password: SEED_PASSWORD, name: 'Aida Admin',     phone: '+60123000001', role: 'admin',    is_active: 1, created_at: daysAgo(90) },
-  { id: 2, email: 'manager@orderko.test', password: SEED_PASSWORD, name: 'Marcus Manager', phone: '+60123000002', role: 'manager',  is_active: 1, created_at: daysAgo(80) },
-  { id: 3, email: 'cust@orderko.test',    password: SEED_PASSWORD, name: 'Chloe Customer', phone: '+60123000003', role: 'customer', is_active: 1, created_at: daysAgo(40) },
+  { id: 1, email: 'admin@orderko.test',   name: 'Aida Admin',     phone: '+60123000001', role: 'admin',    is_active: 1, created_at: daysAgo(90) },
+  { id: 2, email: 'manager@orderko.test', name: 'Marcus Manager', phone: '+60123000002', role: 'manager',  is_active: 1, created_at: daysAgo(80) },
+  { id: 3, email: 'cust@orderko.test',    name: 'Chloe Customer', phone: '+60123000003', role: 'customer', is_active: 1, created_at: daysAgo(40) },
 ];
 
 export const seedSettings = () => ({
