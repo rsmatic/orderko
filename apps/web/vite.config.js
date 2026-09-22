@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // GitHub Pages serves a project repo from a sub-path
-// (/orderko.github.io/), so the deploy workflow sets VITE_BASE. Local dev and
+// (/orderko/), so the deploy workflow sets VITE_BASE. Local dev and
 // any root-hosted deploy leave it unset and serve from '/'.
 const base = process.env.VITE_BASE || '/';
 

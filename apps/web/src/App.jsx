@@ -29,7 +29,7 @@ const LazyReports = () => (
 );
 
 // Vite derives BASE_URL from `base`. On GitHub Pages that is
-// '/orderko.github.io/'; everywhere else it is '/'. React Router wants it
+// '/orderko/'; everywhere else it is '/'. React Router wants it
 // without the trailing slash.
 const ROUTER_BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 

@@ -253,7 +253,7 @@ Pages serves files, it does not run processes — so they go on a host that runs
 containers.
 
 ```
-GitHub Pages ──► React SPA      https://rsmatic.github.io/orderko.github.io/
+GitHub Pages ──► React SPA      https://rsmatic.github.io/orderko/
                      │ VITE_API_BASE_URL
                      ▼
 Render/Railway ──► Express API  https://<your-api>/api
@@ -317,15 +317,13 @@ Push to `main` and [`deploy-pages.yml`](.github/workflows/deploy-pages.yml)
 builds and publishes. Without the variable the site still deploys, but every
 request fails with a message saying so — the workflow also logs a warning.
 
-The workflow sets `VITE_BASE` to `/<repo>/` because project sites are served
-from a sub-path, copies `index.html` to `404.html` so deep links survive
-(Pages has no history fallback), and writes `.nojekyll`.
+The workflow derives `VITE_BASE` from the repository name, because a project
+site is served from `/<repo>/`. It also copies `index.html` to `404.html` so
+deep links survive (Pages has no history fallback), and writes `.nojekyll`.
 
-> **On the URL:** `rsmatic/orderko.github.io` is a *project* repo, so it
-> publishes to `https://rsmatic.github.io/orderko.github.io/`. The bare
-> `https://orderko.github.io` needs a GitHub **organisation** named `orderko`
-> owning a repo called `orderko.github.io`. Moving there is a rename plus
-> dropping `VITE_BASE` from the workflow.
+> **On the URL:** the published path is the repository name, so renaming the
+> repo moves the site with no workflow change. `rsmatic/orderko` publishes to
+> `https://rsmatic.github.io/orderko/`.
 
 ### CI
 
