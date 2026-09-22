@@ -28,6 +28,11 @@ const LazyReports = () => (
   </Suspense>
 );
 
+// Vite derives BASE_URL from `base`. On GitHub Pages that is
+// '/orderko.github.io/'; everywhere else it is '/'. React Router wants it
+// without the trailing slash.
+const ROUTER_BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 /** Customer-only gate: pushes guests to sign in, keeping where they came from. */
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -48,7 +53,7 @@ function NotFound() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={ROUTER_BASE}>
       <AuthProvider>
         <CartProvider>
           <Routes>

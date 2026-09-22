@@ -246,13 +246,99 @@ with a 400 listing what's allowed. Every transition is written to
 
 ---
 
-## Before deploying
+## Deploying
 
-- Set a real `JWT_SECRET` — the API refuses to boot in production without one.
+The frontend is static and goes on GitHub Pages. The API and MySQL cannot —
+Pages serves files, it does not run processes — so they go on a host that runs
+containers.
+
+```
+GitHub Pages ──► React SPA      https://rsmatic.github.io/orderko.github.io/
+                     │ VITE_API_BASE_URL
+                     ▼
+Render/Railway ──► Express API  https://<your-api>/api
+                     │ DB_*
+                     ▼
+Managed MySQL 8 ──► overnight_oats
+```
+
+### 1. MySQL
+
+Create a MySQL 8 database anywhere that gives you a host, port, user, password
+and a TCP connection — Railway, Aiven and TiDB Serverless all work, as does a
+database on your own server. (Free tiers move around; check current terms.)
+
+Load the schema from your laptop, pointing the setup script at the remote:
+
+```bash
+DB_HOST=... DB_PORT=... DB_USER=... DB_PASSWORD=... DB_NAME=overnight_oats \
+  npm run db:setup
+```
+
+Then change the seeded passwords — they are documented in this file, so treat
+them as public.
+
+### 2. API
+
+The API ships as a container. Build context is the **repo root**, not
+`apps/api`, because the image keeps the monorepo layout:
+
+```bash
+docker build -f apps/api/Dockerfile -t orderko-api .
+```
+
+**Render** — `New → Blueprint`, point it at this repo, and it reads
+[`render.yaml`](render.yaml). Fill in the values marked `sync: false` (the DB_*
+set and `PUBLIC_BASE_URL`); `JWT_SECRET` is generated for you.
+
+**Railway / Fly / anything else** — deploy the Dockerfile and set the same
+environment variables by hand. Health check path is `/api/health`, which
+reports whether the database is reachable, not just whether the process is up.
+
+Either way these matter:
+
+| Variable | Value |
+|---|---|
+| `CORS_ORIGIN` | `https://rsmatic.github.io` — exact origin, no trailing slash |
+| `PUBLIC_BASE_URL` | the API's own public URL |
+| `JWT_SECRET` | a real secret; the API refuses to boot in production without one |
+| `DB_*` | your MySQL |
+| `GRAB_MODE` | `mock` until you have GrabExpress credentials |
+
+### 3. Frontend on Pages
+
+Two one-time settings in the repo:
+
+1. **Settings → Pages → Source: GitHub Actions.**
+2. **Settings → Secrets and variables → Actions → Variables → New variable:**
+   `VITE_API_BASE_URL` = `https://<your-api>/api` (include the `/api`).
+
+Push to `main` and [`deploy-pages.yml`](.github/workflows/deploy-pages.yml)
+builds and publishes. Without the variable the site still deploys, but every
+request fails with a message saying so — the workflow also logs a warning.
+
+The workflow sets `VITE_BASE` to `/<repo>/` because project sites are served
+from a sub-path, copies `index.html` to `404.html` so deep links survive
+(Pages has no history fallback), and writes `.nojekyll`.
+
+> **On the URL:** `rsmatic/orderko.github.io` is a *project* repo, so it
+> publishes to `https://rsmatic.github.io/orderko.github.io/`. The bare
+> `https://orderko.github.io` needs a GitHub **organisation** named `orderko`
+> owning a repo called `orderko.github.io`. Moving there is a rename plus
+> dropping `VITE_BASE` from the workflow.
+
+### CI
+
+[`ci.yml`](.github/workflows/ci.yml) runs on every push: builds the web app,
+stands up MySQL 8, loads the schema, boots the API, runs the smoke test against
+it, and builds the API image.
+
+## Other notes
+
 - Put MySQL behind a dedicated user, not `root`.
-- `CORS_ORIGIN` must list your real web origin.
 - Set `GRAB_WEBHOOK_SECRET`; without it the webhook signature check is skipped.
-- Serve `apps/web/dist` from a static host or put it behind the API.
 - The mock provider keeps simulation state in memory, so a restart stops
   in-flight simulations. Rows already in `deliveries` are unaffected. This is
   mock-only — the live provider is stateless and driven by webhooks.
+- A free-tier API that spins down when idle will make the first request after a
+  pause slow or fail; the frontend surfaces that as "it may still be waking up".

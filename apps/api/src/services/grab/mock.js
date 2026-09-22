@@ -60,7 +60,10 @@ function lerpPoint(from, to, t) {
 }
 
 export function createMockProvider({ onEvent }) {
-  function advance(bookingId) {
+  // `onEvent` persists the transition, so it has to finish before a caller
+  // reads the delivery back — otherwise an advance-then-read returns the
+  // previous status.
+  async function advance(bookingId) {
     const b = bookings.get(bookingId);
     if (!b || b.terminal) return;
 
@@ -81,7 +84,7 @@ export function createMockProvider({ onEvent }) {
       b.terminal = true;
     }
 
-    onEvent?.({
+    await onEvent?.({
       provider_delivery_id: b.id,
       status: next,
       description: DESCRIPTIONS[next],
@@ -91,7 +94,10 @@ export function createMockProvider({ onEvent }) {
     });
 
     if (!b.terminal) {
-      b.timer = setTimeout(() => advance(bookingId), config.grab.mockTickSeconds * 1000);
+      b.timer = setTimeout(
+        () => { advance(bookingId).catch((err) => console.error('[grab-mock]', err)); },
+        config.grab.mockTickSeconds * 1000,
+      );
       b.timer.unref?.();
     }
   }
@@ -130,7 +136,7 @@ export function createMockProvider({ onEvent }) {
       bookings.set(bookingId, booking);
 
       booking.timer = setTimeout(
-        () => advance(bookingId),
+        () => { advance(bookingId).catch((err) => console.error('[grab-mock]', err)); },
         config.grab.mockTickSeconds * 1000,
       );
       booking.timer.unref?.();
@@ -166,7 +172,7 @@ export function createMockProvider({ onEvent }) {
       clearTimeout(b.timer);
       b.status = 'cancelled';
       b.terminal = true;
-      onEvent?.({
+      await onEvent?.({
         provider_delivery_id: b.id,
         status: 'cancelled',
         description: reason || DESCRIPTIONS.cancelled,
@@ -180,7 +186,7 @@ export function createMockProvider({ onEvent }) {
       const b = bookings.get(providerDeliveryId);
       if (!b) return null;
       clearTimeout(b.timer);
-      advance(providerDeliveryId);
+      await advance(providerDeliveryId);
       return this.track(providerDeliveryId);
     },
   };

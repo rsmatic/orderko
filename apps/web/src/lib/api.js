@@ -1,5 +1,24 @@
 const TOKEN_KEY = 'oats.token';
 
+/**
+ * Where the API lives.
+ *
+ * In dev this stays '/api' and Vite proxies it to localhost:4000. A deployed
+ * build bakes in VITE_API_BASE_URL (e.g. https://oats-api.onrender.com/api),
+ * because the static host serving this bundle has no API of its own.
+ */
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+
+/**
+ * A relative base only resolves when something is serving the API alongside
+ * this bundle. On a static host it never will, so say so plainly instead of
+ * letting every request fail as an unexplained 404.
+ */
+const MISCONFIGURED =
+  !import.meta.env.DEV &&
+  API_BASE.startsWith('/') &&
+  !['localhost', '127.0.0.1'].includes(window.location.hostname);
+
 export const tokenStore = {
   get: () => {
     try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -21,16 +40,37 @@ export class ApiError extends Error {
 }
 
 async function request(method, path, body, { signal } = {}) {
+  if (MISCONFIGURED) {
+    throw new ApiError(
+      0,
+      'This build has no API address. Set the VITE_API_BASE_URL repository variable ' +
+        'to your deployed API (for example https://your-api.onrender.com/api) and re-run the deploy.',
+    );
+  }
+
   const token = tokenStore.get();
-  const res = await fetch(`/api${path}`, {
-    method,
-    signal,
-    headers: {
-      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      signal,
+      headers: {
+        ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
+    // A free-tier API that has spun down looks exactly like a CORS failure
+    // from here, so name both possibilities.
+    throw new ApiError(
+      0,
+      'Could not reach the API. It may still be waking up — try again in a moment. ' +
+        "If this persists, check the API is running and that its CORS_ORIGIN allows this site.",
+    );
+  }
 
   const text = await res.text();
   let payload = null;

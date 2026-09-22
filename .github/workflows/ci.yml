@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and smoke-test against MySQL
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_password
+          MYSQL_DATABASE: overnight_oats
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci_root_password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ci_root_password
+      DB_NAME: overnight_oats
+      JWT_SECRET: ci-only-secret
+      SEED_PASSWORD: Password123!
+      GRAB_MODE: mock
+      # Keep the simulated driver slow enough that the test drives it by hand
+      # through the advance endpoint, rather than racing the timer.
+      GRAB_MOCK_TICK_SECONDS: 3600
+      PORT: 4000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the web app
+        run: npm run build --workspace apps/web
+
+      - name: Create and seed the database
+        run: npm run db:setup
+
+      - name: Start the API
+        run: |
+          npm run start --workspace apps/api &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000/api/health > /dev/null; then
+              echo "API is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API did not come up in time"
+          exit 1
+
+      - name: Smoke test
+        run: npm run smoke
+
+      - name: Build the API image
+        run: docker build -f apps/api/Dockerfile -t orderko-api .
