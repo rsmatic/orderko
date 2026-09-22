@@ -216,6 +216,7 @@ export function createBackend({ state, persist, auth, delivery }) {
         shop_name: s.shop_name,
         logo_url: s.logo_url ?? '',
         hero_image_url: s.hero_image_url ?? '',
+        show_included_label: s.show_included_label !== false,
         currency: s.currency,
         tax_rate: Number(s.tax_rate),
         pickup_address: s.pickup_address,
@@ -1064,7 +1065,7 @@ export function createBackend({ state, persist, auth, delivery }) {
     ['PUT', /^\/admin\/settings$/, async (m, body, user) => {
       requireRole(user, 'admin');
       const allowed = [
-        'shop_name', 'logo_url', 'hero_image_url',
+        'shop_name', 'logo_url', 'hero_image_url', 'show_included_label',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
         'max_delivery_km',

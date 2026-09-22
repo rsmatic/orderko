@@ -109,9 +109,10 @@ Everything a manager can do, plus:
   roles, reset passwords, disable accounts. Email is the sign-in name, so a
   change is rejected if another account already uses it. The last active admin
   can't be demoted or disabled.
-- **Shop settings** — branding (logo and front-page picture, uploaded or
-  linked), name, currency, tax rate, minimum order, prep time, the pickup
-  address Grab collects from, and a delivery on/off switch.
+- **Shop settings** — branding (logo, front-page picture, and whether free
+  choices are labelled "Included"), name, currency, tax rate, minimum order,
+  prep time, delivery radius, the pickup address Grab collects from, and a
+  delivery on/off switch.
 - **Activity log** — every staff change, who made it and when.
 
 ---

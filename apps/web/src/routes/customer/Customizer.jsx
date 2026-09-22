@@ -3,6 +3,7 @@ import {
   optionLimit, minPicks, isPickBlocked, applyPick, selectionProblems, initialPicks,
 } from '@overnight-oats/core';
 import { money } from '../../lib/api';
+import { useShop } from '../../context/ShopContext';
 import { Qty, Alert } from '../../components/ui';
 
 /**
@@ -14,6 +15,7 @@ import { Qty, Alert } from '../../components/ui';
  * checkout and its number is the one that counts.
  */
 export default function Customizer({ product, onClose, onAdd }) {
+  const { shop } = useShop();
   const groups = useMemo(
     () => [...(product.option_groups ?? [])].sort((a, b) => a.sort_order - b.sort_order),
     [product],
@@ -36,6 +38,13 @@ export default function Customizer({ product, onClose, onAdd }) {
       document.body.style.overflow = prev;
     };
   }, [onClose]);
+
+  /** Sold out always shows; a surcharge always shows; "Included" is optional. */
+  function priceLabel(option) {
+    if (!option.is_available) return 'Sold out';
+    if (Number(option.price_delta) !== 0) return `+${money(option.price_delta)}`;
+    return shop.show_included_label === false ? '' : 'Included';
+  }
 
   function toggle(group, option) {
     setSelected((prev) => ({
@@ -156,13 +165,14 @@ export default function Customizer({ product, onClose, onAdd }) {
                         </span>
                         <span className="grow">
                           <span className="opt-name">{option.name}</span>
-                          <span className="opt-price" style={{ display: 'block' }}>
-                            {!option.is_available
-                              ? 'Sold out'
-                              : Number(option.price_delta) === 0
-                                ? 'Included'
-                                : `+${money(option.price_delta)}`}
-                          </span>
+                          {/* Nothing to say about a free option when the shop
+                              has turned that label off — render no line at all
+                              rather than an empty one. */}
+                          {priceLabel(option) ? (
+                            <span className="opt-price" style={{ display: 'block' }}>
+                              {priceLabel(option)}
+                            </span>
+                          ) : null}
                         </span>
                       </button>
                     );

@@ -25,6 +25,9 @@ export const seedSettings = () => ({
   // admin can set either to an image URL or an uploaded picture.
   logo_url: '',
   hero_image_url: '',
+  // Whether a free option says so. Worth showing when most choices cost
+  // extra; just noise when a whole group is free.
+  show_included_label: true,
   currency: 'PHP',
   // Philippine VAT. Change it in Admin → Shop settings if your registration
   // differs — a small shop below the VAT threshold may not charge it at all.

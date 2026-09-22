@@ -24,6 +24,7 @@ export default function Settings() {
           shop_name: s.shop_name ?? '',
           logo_url: s.logo_url ?? '',
           hero_image_url: s.hero_image_url ?? '',
+          show_included_label: s.show_included_label !== false,
           currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
           pickup_address: s.pickup_address ?? '',
@@ -57,6 +58,7 @@ export default function Settings() {
         shop_name: form.shop_name,
         logo_url: form.logo_url,
         hero_image_url: form.hero_image_url,
+        show_included_label: form.show_included_label,
         currency: form.currency.toUpperCase(),
         tax_rate: Number(form.tax_rate) / 100,
         pickup_address: form.pickup_address,
@@ -95,7 +97,21 @@ export default function Settings() {
             <h3>Branding</h3>
             <span className="tiny faint">what customers see</span>
           </div>
-          <div className="panel-body grid grid-2">
+          <div className="panel-body stack">
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={form.show_included_label}
+                onChange={(e) => set({ show_included_label: e.target.checked })}
+              />
+              Label free choices as “Included”
+            </label>
+            <span className="hint" style={{ marginTop: '-.35rem' }}>
+              Useful when most choices cost extra. Turn it off when a whole group
+              is free and the word just repeats down the list.
+            </span>
+
+            <div className="grid grid-2">
             <Field label="Logo">
               <ImagePicker
                 value={form.logo_url}
@@ -113,6 +129,7 @@ export default function Settings() {
                 hint="The large image on the storefront. Leave empty for the stock photo."
               />
             </Field>
+            </div>
           </div>
         </section>
 
