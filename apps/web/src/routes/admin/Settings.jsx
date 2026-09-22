@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Field, Spinner } from '../../components/ui';
+import ImagePicker from '../../components/ImagePicker';
+import { useShop } from '../../context/ShopContext';
 
 export default function Settings() {
+  const { reload: reloadShop } = useShop();
   const [form, setForm] = useState(null);
   const [grabMode, setGrabMode] = useState('');
   const [error, setError] = useState('');
@@ -19,6 +22,8 @@ export default function Settings() {
         setGrabMode(res.grab_mode);
         setForm({
           shop_name: s.shop_name ?? '',
+          logo_url: s.logo_url ?? '',
+          hero_image_url: s.hero_image_url ?? '',
           currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
           pickup_address: s.pickup_address ?? '',
@@ -49,6 +54,8 @@ export default function Settings() {
     try {
       await api.put('/admin/settings', {
         shop_name: form.shop_name,
+        logo_url: form.logo_url,
+        hero_image_url: form.hero_image_url,
         currency: form.currency.toUpperCase(),
         tax_rate: Number(form.tax_rate) / 100,
         pickup_address: form.pickup_address,
@@ -60,6 +67,8 @@ export default function Settings() {
         order_lead_mins: Number(form.order_lead_mins),
       });
       setNotice('Settings saved');
+      // The storefront header reads these, so refresh its copy.
+      reloadShop();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -78,6 +87,32 @@ export default function Settings() {
       <form className="dash-body stack" style={{ maxWidth: 780 }} onSubmit={save}>
         {error ? <Alert kind="error" onDismiss={() => setError('')}>{error}</Alert> : null}
         {notice ? <Alert kind="ok">{notice}</Alert> : null}
+
+        <section className="panel">
+          <div className="panel-head">
+            <h3>Branding</h3>
+            <span className="tiny faint">what customers see</span>
+          </div>
+          <div className="panel-body grid grid-2">
+            <Field label="Logo">
+              <ImagePicker
+                value={form.logo_url}
+                shape="square"
+                maxPixels={192}
+                onChange={(v) => set({ logo_url: v })}
+                hint="Shown beside the shop name in the header. A square picture works best."
+              />
+            </Field>
+            <Field label="Front page picture">
+              <ImagePicker
+                value={form.hero_image_url}
+                maxPixels={720}
+                onChange={(v) => set({ hero_image_url: v })}
+                hint="The large image on the storefront. Leave empty for the stock photo."
+              />
+            </Field>
+          </div>
+        </section>
 
         <section className="panel">
           <div className="panel-head"><h3>Shop</h3></div>

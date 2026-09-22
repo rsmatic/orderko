@@ -3,6 +3,7 @@ import { api, money } from '../../lib/api';
 import { useCart } from '../../context/CartContext';
 import { Loading, Empty, Alert } from '../../components/ui';
 import Customizer from './Customizer';
+import { useShop } from '../../context/ShopContext';
 
 export default function Menu() {
   const [menu, setMenu] = useState(null);
@@ -11,6 +12,7 @@ export default function Menu() {
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState('');
   const cart = useCart();
+  const { shop } = useShop();
 
   useEffect(() => {
     let cancelled = false;
@@ -71,10 +73,12 @@ export default function Menu() {
               </span>
             </div>
           </div>
-          <div className="hero-art">
+          {/* A logo needs letterboxing; a photo can fill the frame. */}
+          <div className={`hero-art ${shop.hero_image_url ? 'hero-art-contain' : ''}`}>
             <img
-              src="https://images.unsplash.com/photo-1517093157656-b9eccef91cb1?w=900&q=75"
-              alt="A jar of overnight oats topped with fresh fruit"
+              src={shop.hero_image_url
+                || 'https://images.unsplash.com/photo-1517093157656-b9eccef91cb1?w=900&q=75'}
+              alt={shop.hero_image_url ? shop.shop_name : 'A jar of overnight oats topped with fresh fruit'}
               loading="eager"
             />
           </div>

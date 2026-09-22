@@ -21,6 +21,10 @@ export const seedUsers = () => [
 
 export const seedSettings = () => ({
   shop_name: 'Orderko Overnight Oats',
+  // Branding. Empty falls back to the built-in mark and stock photo; the
+  // admin can set either to an image URL or an uploaded picture.
+  logo_url: '',
+  hero_image_url: '',
   currency: 'PHP',
   // Philippine VAT. Change it in Admin → Shop settings if your registration
   // differs — a small shop below the VAT threshold may not charge it at all.

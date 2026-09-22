@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { ShopProvider } from './context/ShopContext';
 import { Loading } from './components/ui';
 
 import StoreLayout from './routes/customer/StoreLayout';
@@ -55,6 +56,7 @@ export default function App() {
   return (
     <BrowserRouter basename={ROUTER_BASE}>
       <AuthProvider>
+        <ShopProvider>
         <CartProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -89,6 +91,7 @@ export default function App() {
             </Route>
           </Routes>
         </CartProvider>
+        </ShopProvider>
       </AuthProvider>
     </BrowserRouter>
   );

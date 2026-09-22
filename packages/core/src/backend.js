@@ -20,6 +20,9 @@ import {
 
 const nowIso = () => new Date().toISOString();
 
+/** Images live inline in the store, so they need a ceiling. ~400 KB of base64. */
+const MAX_IMAGE_CHARS = 400_000;
+
 /** An order book with nothing in it, counters at the start. */
 const emptyOrderBook = () => ({
   orders: [],
@@ -211,6 +214,8 @@ export function createBackend({ state, persist, auth, delivery }) {
     return {
       settings: {
         shop_name: s.shop_name,
+        logo_url: s.logo_url ?? '',
+        hero_image_url: s.hero_image_url ?? '',
         currency: s.currency,
         tax_rate: Number(s.tax_rate),
         pickup_address: s.pickup_address,
@@ -524,6 +529,12 @@ export function createBackend({ state, persist, auth, delivery }) {
       if (body.is_active !== undefined) c.is_active = body.is_active ? 1 : 0;
       return c;
     }],
+
+    /**
+     * Just the shop's public settings. The storefront header needs the name
+     * and logo on every page and has no use for the whole catalog.
+     */
+    ['GET', /^\/catalog\/settings$/, async (m, body, user) => buildMenu(user).settings],
 
     // -------------------------------------------------------------- orders
     ['POST', /^\/orders\/quote$/, async (m, body) => {
@@ -1027,12 +1038,29 @@ export function createBackend({ state, persist, auth, delivery }) {
     ['PUT', /^\/admin\/settings$/, async (m, body, user) => {
       requireRole(user, 'admin');
       const allowed = [
-        'shop_name', 'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
+        'shop_name', 'logo_url', 'hero_image_url',
+        'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
       ];
       const patch = {};
       for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
       if (!Object.keys(patch).length) throw bad('Nothing to update');
+
+      for (const k of ['logo_url', 'hero_image_url']) {
+        if (patch[k] === undefined) continue;
+        const value = String(patch[k] ?? '').trim();
+        if (value.length > MAX_IMAGE_CHARS) {
+          throw bad(
+            `That image is too large (${Math.round(value.length / 1024)} KB). ` +
+              `Keep it under ${Math.round(MAX_IMAGE_CHARS / 1024)} KB — the whole store is ` +
+              'rewritten on every order, so a big picture slows every save.',
+          );
+        }
+        if (value && !/^(https?:\/\/|data:image\/)/.test(value)) {
+          throw bad('An image must be an https:// address or an uploaded picture');
+        }
+        patch[k] = value;
+      }
       Object.assign(db.settings, patch);
       audit(user, 'settings.update', 'settings', null, patch);
       return { settings: { ...db.settings } };

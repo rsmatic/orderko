@@ -4,9 +4,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import CartDrawer from './CartDrawer';
 import DemoBanner from '../../components/DemoBanner';
+import { useShop } from '../../context/ShopContext';
 
 export default function StoreLayout() {
   const { user, logout, isStaff } = useAuth();
+  const { shop } = useShop();
   const cart = useCart();
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -16,8 +18,12 @@ export default function StoreLayout() {
       <header className="store-header">
         <div className="container store-header-inner">
           <Link to="/" className="brand">
-            <span className="brand-mark" aria-hidden="true">🥣</span>
-            Orderko
+            <span className="brand-mark" aria-hidden="true">
+              {shop.logo_url
+                ? <img src={shop.logo_url} alt="" />
+                : '🥣'}
+            </span>
+            {shop.shop_name}
           </Link>
 
           <nav className="row grow" style={{ justifyContent: 'flex-end' }}>
@@ -50,7 +56,7 @@ export default function StoreLayout() {
 
       <footer className="container" style={{ padding: '2rem 0', borderTop: '1px solid var(--line)', marginTop: '2rem' }}>
         <div className="spread small muted">
-          <span>Orderko Overnight Oats</span>
+          <span>{shop.shop_name}</span>
           <span className="tiny faint">Delivery by Grab</span>
         </div>
       </footer>

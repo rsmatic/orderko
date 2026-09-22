@@ -83,7 +83,9 @@ app.post('/api/webhooks/grab', express.raw({ type: '*/*', limit: '256kb' }), asy
   res.json({ received: true, matched: Boolean(matched) });
 });
 
-app.use(express.json({ limit: '256kb' }));
+// Comfortably above the core's image ceiling, so an oversized picture gets the
+// core's explanation rather than body-parser's bare rejection.
+app.use(express.json({ limit: '1mb' }));
 
 // ------------------------------------------------------------------- health
 
@@ -139,6 +141,22 @@ app.all('/api/*', async (req, res) => {
 });
 
 app.use((req, res) => res.status(404).json({ error: `No route for ${req.method} ${req.originalUrl}` }));
+
+/**
+ * Body-parser failures happen before any route runs, and Express answers them
+ * with an HTML page — which a JSON client can only report as gibberish.
+ */
+// eslint-disable-next-line no-unused-vars -- Express needs the 4-arg signature
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'That request is too large. Use a smaller picture.' });
+  }
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Body is not valid JSON' });
+  }
+  console.error('[error]', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 // ------------------------------------------------------------- sim ticker
 
