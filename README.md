@@ -305,6 +305,23 @@ Either way these matter:
 | `DB_*` | your MySQL |
 | `GRAB_MODE` | `mock` until you have GrabExpress credentials |
 
+### Demo mode
+
+Pages cannot run the API, so a build with no `VITE_API_BASE_URL` falls back to
+an in-browser backend
+([`apps/web/src/demo/`](apps/web/src/demo/)) rather than publishing a site that
+cannot do anything. It answers the same routes with the same shapes and
+enforces the same rules — option min/max, availability, the order lifecycle,
+role boundaries, and a simulated Grab driver — with state in `localStorage`, so
+it is per-visitor and disposable.
+
+This is what is live at **https://rsmatic.github.io/orderko/** today. A banner
+says so, and offers a reset.
+
+`npm run test:demo` checks the demo against the same expectations the API's
+smoke test uses; CI runs it, so the two cannot quietly drift apart. Setting
+`VITE_API_BASE_URL` disables demo mode and drops the chunk from the bundle.
+
 ### 3. Frontend on Pages
 
 Two one-time settings in the repo:

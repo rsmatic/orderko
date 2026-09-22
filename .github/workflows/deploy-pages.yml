@@ -33,16 +33,23 @@ jobs:
 
       - run: npm ci
 
-      - name: Warn if the API address is not configured
-        if: vars.VITE_API_BASE_URL == ''
+      - name: Note the build mode
         run: |
-          echo "::warning title=No API configured::Set the VITE_API_BASE_URL repository variable (Settings → Secrets and variables → Actions → Variables) to your deployed API, e.g. https://orderko-api.onrender.com/api. Without it the site loads but every request fails."
+          if [ -z "${{ vars.VITE_API_BASE_URL }}" ]; then
+            echo "::notice title=Demo build::No VITE_API_BASE_URL set, so the site ships with the in-browser demo backend. Set that repository variable (Settings → Secrets and variables → Actions → Variables) to point at a real deployed API instead."
+          else
+            echo "::notice title=Live build::Calling the API at ${{ vars.VITE_API_BASE_URL }}"
+          fi
 
       - name: Build
         env:
           # Project sites are served from /<repo>/, so the bundle needs that prefix.
           VITE_BASE: /${{ github.event.repository.name }}/
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          # Pages cannot run the API, so fall back to the in-browser backend
+          # rather than publishing a site that cannot do anything. A real API
+          # address always wins — see DEMO in apps/web/src/lib/api.js.
+          VITE_DEMO: ${{ vars.VITE_API_BASE_URL == '' && '1' || '0' }}
         run: npm run build --workspace apps/web
 
       - name: Add SPA fallback

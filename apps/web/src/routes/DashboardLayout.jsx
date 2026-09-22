@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loading } from '../components/ui';
+import DemoBanner from '../components/DemoBanner';
 
 const MANAGER_NAV = [
   { to: '/manager',          end: true, icon: '🔥', label: 'Kitchen queue' },
@@ -110,6 +111,7 @@ export default function DashboardLayout({ area }) {
       </aside>
 
       <div className="dash-main">
+        <DemoBanner />
         <Outlet />
       </div>
     </div>

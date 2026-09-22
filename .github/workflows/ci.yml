@@ -52,6 +52,11 @@ jobs:
       - name: Build the web app
         run: npm run build --workspace apps/web
 
+      # The demo backend duplicates the API's rules so the published site works
+      # without a server. This fails if the two drift apart.
+      - name: Test the demo backend
+        run: npm run test:demo
+
       - name: Create and seed the database
         run: npm run db:setup
 

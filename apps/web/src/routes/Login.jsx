@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Alert, Field, Spinner } from '../components/ui';
+import DemoBanner from '../components/DemoBanner';
 
 const DEMO = [
   { role: 'Admin',    email: 'admin@orderko.test' },
@@ -35,6 +36,7 @@ export default function Login() {
   }
 
   return (
+    <><DemoBanner />
     <div className="auth-wrap">
       <div className="auth-card stack">
         <Link to="/" className="brand" style={{ justifyContent: 'center', textDecoration: 'none' }}>
@@ -84,6 +86,7 @@ export default function Login() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -115,6 +118,7 @@ export function Register() {
   }
 
   return (
+    <><DemoBanner />
     <div className="auth-wrap">
       <div className="auth-card stack">
         <Link to="/" className="brand" style={{ justifyContent: 'center', textDecoration: 'none' }}>
@@ -162,5 +166,6 @@ export function Register() {
         </form>
       </div>
     </div>
+    </>
   );
 }

@@ -495,3 +495,47 @@ button, input, select, textarea { font: inherit; color: inherit; }
   h1 { font-size: 1.6rem; }
   .opt-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ================================================================== demo */
+
+.demo-banner {
+  background: var(--ink);
+  color: #e9e1d6;
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+  position: relative;
+  z-index: 35;
+}
+.demo-banner-inner {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .5rem 0; flex-wrap: wrap;
+}
+.demo-banner .btn {
+  background: rgba(255, 255, 255, .1);
+  border-color: rgba(255, 255, 255, .18);
+  color: #f3ece1;
+}
+.demo-banner .btn:hover { background: rgba(255, 255, 255, .18); }
+
+.demo-chip {
+  background: var(--honey); color: #241d15;
+  font-size: .68rem; font-weight: 800; letter-spacing: .09em;
+  text-transform: uppercase; padding: .16rem .5rem; border-radius: 999px;
+  flex: none;
+}
+
+.demo-logins {
+  display: flex; gap: 1.1rem; flex-wrap: wrap;
+  padding: 0 0 .7rem;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  margin-top: -1px; padding-top: .7rem;
+}
+.demo-login { display: flex; align-items: baseline; gap: .4rem; font-size: .82rem; }
+.demo-login code {
+  background: rgba(255, 255, 255, .12); padding: .1rem .35rem;
+  border-radius: 4px; font-size: .8rem;
+}
+.demo-logins code { color: #fbe6c2; }
+
+@media (max-width: 620px) {
+  .demo-banner-inner .small { width: 100%; order: 3; }
+}

@@ -10,11 +10,18 @@ const TOKEN_KEY = 'oats.token';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 /**
+ * Demo mode swaps the network for an in-browser backend, so the app works on
+ * a static host with no API behind it. A real API address always wins.
+ */
+export const DEMO = import.meta.env.VITE_DEMO === '1' && !import.meta.env.VITE_API_BASE_URL;
+
+/**
  * A relative base only resolves when something is serving the API alongside
  * this bundle. On a static host it never will, so say so plainly instead of
  * letting every request fail as an unexplained 404.
  */
 const MISCONFIGURED =
+  !DEMO &&
   !import.meta.env.DEV &&
   API_BASE.startsWith('/') &&
   !['localhost', '127.0.0.1'].includes(window.location.hostname);
@@ -40,6 +47,17 @@ export class ApiError extends Error {
 }
 
 async function request(method, path, body, { signal } = {}) {
+  if (DEMO) {
+    // Loaded on demand so the demo backend stays out of a real deployment's bundle.
+    const { demoRequest } = await import('../demo/backend');
+    if (signal?.aborted) throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+    try {
+      return await demoRequest(method, path, body, tokenStore.get());
+    } catch (err) {
+      throw new ApiError(err.status ?? 500, err.message, err.details);
+    }
+  }
+
   if (MISCONFIGURED) {
     throw new ApiError(
       0,

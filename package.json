@@ -14,7 +14,8 @@
     "build": "npm run build --workspace apps/web",
     "db:setup": "npm run db:setup --workspace apps/api",
     "db:reset": "npm run db:reset --workspace apps/api",
-    "smoke": "npm run smoke --workspace apps/api"
+    "smoke": "npm run smoke --workspace apps/api",
+    "test:demo": "npm run test:demo --workspace apps/web"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

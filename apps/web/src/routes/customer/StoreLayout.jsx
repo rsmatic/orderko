@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import CartDrawer from './CartDrawer';
+import DemoBanner from '../../components/DemoBanner';
 
 export default function StoreLayout() {
   const { user, logout, isStaff } = useAuth();
@@ -11,6 +12,7 @@ export default function StoreLayout() {
 
   return (
     <div className="shell">
+      <DemoBanner />
       <header className="store-header">
         <div className="container store-header-inner">
           <Link to="/" className="brand">
