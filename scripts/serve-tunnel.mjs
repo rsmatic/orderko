@@ -13,8 +13,9 @@
  * For a hostname that survives restarts you need a named tunnel, which does
  * need a free Cloudflare account and a domain. See DEPLOY.md.
  */
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,10 +23,34 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const publish = process.argv.includes('--publish');
 const REPO = process.env.GH_REPO || 'rsmatic/orderko';
 
-const CLOUDFLARED = process.env.CLOUDFLARED
-  || (process.platform === 'win32'
-    ? path.join(process.env.USERPROFILE ?? '', 'bin', 'cloudflared.exe')
-    : 'cloudflared');
+/**
+ * Prefer whatever is on PATH — winget, brew and apt all put it there — and
+ * only fall back to the places a manual download tends to land.
+ */
+function findCloudflared() {
+  if (process.env.CLOUDFLARED) return process.env.CLOUDFLARED;
+
+  try {
+    const lookup = process.platform === 'win32' ? 'where' : 'which';
+    const found = execFileSync(lookup, ['cloudflared'], { encoding: 'utf8' })
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)[0];
+    if (found) return found;
+  } catch { /* not on PATH; try the fallbacks */ }
+
+  const fallbacks = process.platform === 'win32'
+    ? [
+      'C:\\Program Files (x86)\\cloudflared\\cloudflared.exe',
+      'C:\\Program Files\\cloudflared\\cloudflared.exe',
+      path.join(process.env.USERPROFILE ?? '', 'bin', 'cloudflared.exe'),
+    ]
+    : ['/usr/local/bin/cloudflared', '/opt/homebrew/bin/cloudflared'];
+
+  return fallbacks.find((p) => existsSync(p)) ?? 'cloudflared';
+}
+
+const CLOUDFLARED = findCloudflared();
 
 const children = [];
 const log = (tag, line) => console.log(`[${tag}] ${line}`);

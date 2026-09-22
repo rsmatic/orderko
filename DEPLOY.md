@@ -39,8 +39,8 @@ That starts the API, opens a Cloudflare quick tunnel, prints the public URL,
 and repoints the Pages site at it. `npm run serve` does the same without
 touching the deployment.
 
-You need `cloudflared` on PATH — or at `~/bin/cloudflared.exe` on Windows,
-which is where the script looks. It is a single binary:
+You need `cloudflared`. The script takes whatever is on PATH, so any of these
+work; set `CLOUDFLARED` to override:
 
 ```bash
 # Windows
