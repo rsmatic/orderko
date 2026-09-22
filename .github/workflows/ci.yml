@@ -33,6 +33,10 @@ jobs:
       - name: Build the web app
         run: npm run build --workspace apps/web
 
+      # Pure rules, no adapters: what the item builder lets you click.
+      - name: Test the core's selection rules
+        run: npm run test:core
+
       # The browser demo and the API run the same @overnight-oats/core. This
       # exercises it through the demo's adapters.
       - name: Test the core through the demo adapters

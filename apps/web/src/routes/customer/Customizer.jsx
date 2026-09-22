@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  optionLimit, minPicks, isPickBlocked, applyPick, selectionProblems, initialPicks,
+} from '@overnight-oats/core';
 import { money } from '../../lib/api';
 import { Qty, Alert } from '../../components/ui';
 
@@ -16,20 +19,8 @@ export default function Customizer({ product, onClose, onAdd }) {
     [product],
   );
 
-  // Pre-select the first option of any required single-choice group, so the
-  // sheet opens in a valid state instead of showing an error straight away.
-  const [selected, setSelected] = useState(() => {
-    const initial = {};
-    for (const g of groups) {
-      const available = (g.options ?? []).filter((o) => o.is_available);
-      if (g.input_type === 'single' && (g.is_required || g.min_select > 0) && available.length) {
-        initial[g.id] = [available[0].id];
-      } else {
-        initial[g.id] = [];
-      }
-    }
-    return initial;
-  });
+  // Opens in a valid state, so the sheet never greets you with an error.
+  const [selected, setSelected] = useState(() => initialPicks(groups));
 
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
@@ -46,37 +37,17 @@ export default function Customizer({ product, onClose, onAdd }) {
     };
   }, [onClose]);
 
-  const limitFor = (g) => (g.input_type === 'single' ? 1 : g.max_select || Infinity);
-  const minFor = (g) => (g.is_required ? Math.max(1, g.min_select) : g.min_select);
-
   function toggle(group, option) {
-    setSelected((prev) => {
-      const current = prev[group.id] ?? [];
-      const isOn = current.includes(option.id);
-
-      if (group.input_type === 'single') {
-        // Tapping the chosen option again clears it, unless the group is required.
-        if (isOn) return { ...prev, [group.id]: minFor(group) > 0 ? current : [] };
-        return { ...prev, [group.id]: [option.id] };
-      }
-
-      if (isOn) return { ...prev, [group.id]: current.filter((id) => id !== option.id) };
-      if (current.length >= limitFor(group)) return prev;
-      return { ...prev, [group.id]: [...current, option.id] };
-    });
+    setSelected((prev) => ({
+      ...prev,
+      [group.id]: applyPick(group, prev[group.id] ?? [], option),
+    }));
   }
 
-  const problems = useMemo(() => {
-    const out = [];
-    for (const g of groups) {
-      const n = (selected[g.id] ?? []).length;
-      const min = minFor(g);
-      if (n < min) out.push(`Pick at least ${min} from ${g.name}`);
-      const max = limitFor(g);
-      if (max !== Infinity && n > max) out.push(`Pick at most ${max} from ${g.name}`);
-    }
-    return out;
-  }, [groups, selected]);
+  const problems = useMemo(
+    () => selectionProblems(groups, selected),
+    [groups, selected],
+  );
 
   const chosenOptions = useMemo(() => {
     const byId = new Map();
@@ -135,9 +106,8 @@ export default function Customizer({ product, onClose, onAdd }) {
 
           {groups.map((group) => {
             const current = selected[group.id] ?? [];
-            const max = limitFor(group);
-            const min = minFor(group);
-            const atLimit = max !== Infinity && current.length >= max;
+            const max = optionLimit(group);
+            const min = minPicks(group);
             const options = (group.options ?? [])
               .slice()
               .sort((a, b) => a.sort_order - b.sort_order);
@@ -161,7 +131,7 @@ export default function Customizer({ product, onClose, onAdd }) {
                 <div className="opt-grid">
                   {options.map((option) => {
                     const isOn = current.includes(option.id);
-                    const blocked = !option.is_available || (!isOn && atLimit);
+                    const blocked = isPickBlocked(group, current, option);
                     return (
                       <button
                         key={option.id}

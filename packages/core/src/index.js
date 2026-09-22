@@ -6,4 +6,7 @@ export {
   TRANSITIONS, ORDER_STATUSES, TERMINAL_DELIVERY, ORDER_STATUS_FOR_DELIVERY,
   bad, unauthorized, forbidden, notFound, conflict,
 } from './rules.js';
+export {
+  optionLimit, minPicks, isPickBlocked, applyPick, selectionProblems, initialPicks,
+} from './selection.js';
 export { SEED_PASSWORD } from './seed.js';

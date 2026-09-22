@@ -56,6 +56,7 @@ Customers can also order as guests — no account needed.
 npm run orders:clear  # remove every order, keeping the menu and accounts
 npm run data:reset    # throw away the store and reseed (destroys all data)
 npm run smoke         # end-to-end API check; needs the API running
+npm run test:core     # the rules behind the item builder's clicks
 npm run test:demo     # same checks against the core's browser adapters
 npm run build         # production build of the web app
 ```
