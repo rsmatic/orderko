@@ -1,0 +1,30 @@
+# Set SITE_ADDRESS to your domain (e.g. shop.example.com) and Caddy will get a
+# Let's Encrypt certificate on its own. Left as :80 it serves plain HTTP, which
+# is what you want behind another proxy or for a local run.
+{$SITE_ADDRESS::80} {
+	encode gzip
+
+	# The API shares this origin, so the browser never makes a cross-origin
+	# request and CORS_ORIGIN never has to be widened.
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		root * /srv
+		# Deep links are client-side routes, so anything that is not a real file
+		# falls back to the app shell — with a 200, unlike GitHub Pages.
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# Hashed asset filenames change on every build, so they can be cached hard.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+}

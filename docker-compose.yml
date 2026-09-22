@@ -1,0 +1,85 @@
+# Whole stack on one machine: MySQL, the API, and the web app behind Caddy.
+#
+#   cp .env.compose.example .env
+#   # edit .env — at minimum DB_PASSWORD, MYSQL_ROOT_PASSWORD, JWT_SECRET, SEED_PASSWORD
+#   docker compose up -d --build
+#   docker compose run --rm api npm run db:setup    # first run only
+#
+# Then open http://localhost (or your SITE_ADDRESS).
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_NAME:-overnight_oats}
+      MYSQL_USER: ${DB_USER:-oats}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    # Not published by default: only the API needs to reach it. Uncomment to
+    # connect a GUI from the host.
+    # ports:
+    #   - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-oats}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-overnight_oats}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      SEED_PASSWORD: ${SEED_PASSWORD:?set SEED_PASSWORD in .env}
+      # Caddy puts the app and the API on one origin, so this is only a
+      # fallback for direct access.
+      CORS_ORIGIN: ${PUBLIC_BASE_URL:-http://localhost}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
+      GRAB_MODE: ${GRAB_MODE:-mock}
+      GRAB_CLIENT_ID: ${GRAB_CLIENT_ID:-}
+      GRAB_CLIENT_SECRET: ${GRAB_CLIENT_SECRET:-}
+      GRAB_WEBHOOK_SECRET: ${GRAB_WEBHOOK_SECRET:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      # Set to your domain for automatic HTTPS, e.g. shop.example.com
+      SITE_ADDRESS: ${SITE_ADDRESS::80}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  mysql-data:
+  caddy-data:
+  caddy-config:

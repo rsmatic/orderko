@@ -248,6 +248,22 @@ with a 400 listing what's allowed. Every transition is written to
 
 ## Deploying
 
+**[DEPLOY.md](DEPLOY.md) is the runbook** — Railway, your own server, or
+Render, with copy-paste commands and a pre-launch checklist. The rest of this
+section is the background it assumes.
+
+Want the whole stack on one machine right now?
+
+```bash
+cp .env.compose.example .env     # then edit the secrets
+docker compose up -d --build
+docker compose run --rm api npm run db:setup
+```
+
+That runs MySQL, the API, and the web app behind Caddy, which serves the app
+and proxies `/api` to the API on the same origin — so there is no CORS to
+configure and deep links return 200 rather than Pages' 404.
+
 The frontend is static and goes on GitHub Pages. The API and MySQL cannot —
 Pages serves files, it does not run processes — so they go on a host that runs
 containers.

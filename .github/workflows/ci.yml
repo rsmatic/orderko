@@ -78,3 +78,15 @@ jobs:
 
       - name: Build the API image
         run: docker build -f apps/api/Dockerfile -t orderko-api .
+
+      - name: Build the web image
+        run: docker build -f apps/web/Dockerfile -t orderko-web .
+
+      - name: Validate the compose stack
+        # Dummy secrets: this only resolves and type-checks the file, nothing runs.
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          DB_PASSWORD: ci
+          JWT_SECRET: ci
+          SEED_PASSWORD: ci-not-the-default
+        run: docker compose config --quiet && echo "compose file is valid"

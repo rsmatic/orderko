@@ -16,6 +16,15 @@ const force = process.argv.includes('--force');
 const dbDir = path.join(config.repoRoot, 'db');
 
 async function main() {
+  // The default is printed in the README, so it is public knowledge. Fine for a
+  // local run; a production database seeded with it would be wide open.
+  if (config.env === 'production' && config.seedPassword === 'Password123!') {
+    throw new Error(
+      'SEED_PASSWORD is still the documented default, which is public.\n' +
+        'Set SEED_PASSWORD to something private before seeding a production database.',
+    );
+  }
+
   const { database, ...serverOnly } = config.db;
 
   console.log(`> connecting to mysql://${serverOnly.user}@${serverOnly.host}:${serverOnly.port}`);
