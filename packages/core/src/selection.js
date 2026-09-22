@@ -10,9 +10,46 @@
 export const optionLimit = (group) =>
   (group.input_type === 'single' ? 1 : group.max_select || Infinity);
 
-/** How many must be picked. A required group implies at least one. */
-export const minPicks = (group) =>
-  (group.is_required ? Math.max(1, group.min_select) : group.min_select);
+/**
+ * How many must be picked. A required group implies at least one.
+ *
+ * Clamped to what the group actually allows: a group demanding more than it
+ * permits can never be satisfied, and the customer is left with a disabled
+ * button and no way forward. `groupRuleProblem` stops that being saved, but a
+ * store written before it existed still has to be orderable.
+ */
+export const minPicks = (group) => {
+  const wanted = group.is_required ? Math.max(1, group.min_select) : group.min_select;
+  return Math.min(wanted, optionLimit(group));
+};
+
+/**
+ * Why a group's rules cannot be met, or null when they can.
+ *
+ * A single-select group holds exactly one pick, so any min or max above one
+ * is a contradiction rather than a preference.
+ */
+export function groupRuleProblem(group) {
+  const min = Number(group.min_select ?? 0);
+  const max = Number(group.max_select ?? 0);
+
+  if (group.input_type === 'single') {
+    if (min > 1) {
+      return 'A "pick one" group cannot ask for more than one choice. ' +
+        'Set the minimum to 0 or 1, or make it "pick several".';
+    }
+    if (max > 1) {
+      return 'A "pick one" group cannot allow more than one choice. ' +
+        'Set the maximum to 0 or 1, or make it "pick several".';
+    }
+    return null;
+  }
+
+  if (max > 0 && min > max) {
+    return `This group asks for at least ${min} but allows at most ${max}.`;
+  }
+  return null;
+}
 
 /**
  * Whether tapping this option would do nothing.

@@ -8,6 +8,7 @@
  */
 import {
   optionLimit, minPicks, isPickBlocked, applyPick, selectionProblems, initialPicks,
+  groupRuleProblem,
 } from '../src/selection.js';
 
 let pass = 0;
@@ -100,6 +101,27 @@ check('a complete sheet reports nothing',
 check('too many is reported',
   selectionProblems([fruitMix], { [fruitMix.id]: [10, 11, 12, 13] })
     .includes('Pick at most 3 from Fruit Mix'));
+
+console.log('\nContradictory rules');
+// The shape that actually shipped: a "pick one" group demanding three, which
+// left the Add button disabled with no way to satisfy it.
+const impossible = { ...jarSize, min_select: 3, max_select: 3 };
+check('a "pick one" group asking for three is rejected',
+  Boolean(groupRuleProblem(impossible)), String(groupRuleProblem(impossible)));
+check('a "pick one" group allowing three is rejected',
+  Boolean(groupRuleProblem({ ...jarSize, min_select: 1, max_select: 3 })));
+check('a sane single-select passes', groupRuleProblem(jarSize) === null);
+check('an optional single-select passes', groupRuleProblem(sweetener) === null);
+check('a sane multi-select passes', groupRuleProblem(fruitMix) === null);
+check('an uncapped multi-select passes', groupRuleProblem(toppings) === null);
+check('a multi-select wanting more than it allows is rejected',
+  Boolean(groupRuleProblem({ ...fruitMix, min_select: 5, max_select: 3 })));
+
+check('a stored contradiction is still orderable', minPicks(impossible) === 1,
+  'minPicks=' + minPicks(impossible));
+check('and reports no problem once one is picked',
+  selectionProblems([impossible], { [impossible.id]: [1] }).length === 0,
+  JSON.stringify(selectionProblems([impossible], { [impossible.id]: [1] })));
 
 console.log('\n' + '-'.repeat(48));
 if (fail === 0) console.log(pass + ' checks passed, 0 failed.');

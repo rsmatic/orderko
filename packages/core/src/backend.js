@@ -17,6 +17,7 @@ import {
   round2, slugify, isStaff, publicUser, priceCart, totalsFor, haversineKm,
   TRANSITIONS, ORDER_STATUS_FOR_DELIVERY,
 } from './rules.js';
+import { groupRuleProblem } from './selection.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -497,9 +498,6 @@ export function createBackend({ state, persist, auth, delivery }) {
 
     ['POST', /^\/catalog\/option-groups$/, async (m, body, user) => {
       requireRole(user, 'admin', 'manager');
-      if (body.max_select && body.min_select && body.max_select < body.min_select) {
-        throw bad('max_select cannot be lower than min_select');
-      }
       const g = {
         id: nextId('group'),
         name: body.name,
@@ -512,6 +510,9 @@ export function createBackend({ state, persist, auth, delivery }) {
         sort_order: Number(body.sort_order ?? 0),
         is_active: 1,
       };
+      const problem = groupRuleProblem(g);
+      if (problem) throw bad(problem);
+
       db.optionGroups.push(g);
       audit(user, 'option_group.create', 'option_group', g.id, { name: g.name });
       return g;
@@ -521,11 +522,20 @@ export function createBackend({ state, persist, auth, delivery }) {
       requireRole(user, 'admin', 'manager');
       const g = db.optionGroups.find((x) => x.id === Number(m[1]));
       if (!g) throw notFound('Option group not found');
+      const snapshot = { ...g };
       for (const k of ['name', 'description', 'input_type', 'min_select', 'max_select', 'sort_order']) {
         if (body[k] !== undefined) g[k] = body[k];
       }
       if (body.is_required !== undefined) g.is_required = body.is_required ? 1 : 0;
       if (body.is_active !== undefined) g.is_active = body.is_active ? 1 : 0;
+
+      const problem = groupRuleProblem(g);
+      if (problem) {
+        // Nothing is saved on a contradiction; put the group back as it was.
+        Object.assign(g, snapshot);
+        throw bad(problem);
+      }
+
       audit(user, 'option_group.update', 'option_group', g.id, body);
       return g;
     }],

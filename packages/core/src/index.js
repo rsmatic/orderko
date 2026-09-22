@@ -8,5 +8,6 @@ export {
 } from './rules.js';
 export {
   optionLimit, minPicks, isPickBlocked, applyPick, selectionProblems, initialPicks,
+  groupRuleProblem,
 } from './selection.js';
 export { SEED_PASSWORD } from './seed.js';

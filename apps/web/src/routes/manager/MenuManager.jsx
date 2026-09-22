@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { groupRuleProblem } from '@overnight-oats/core';
 import { api, money } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Modal, Field, Spinner, Empty } from '../../components/ui';
@@ -566,6 +567,14 @@ function GroupEditor({ group, onClose, onSaved, onError }) {
   const [busy, setBusy] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
+  // The same check the server runs, so the contradiction is caught while it
+  // is still being typed rather than on save.
+  const ruleProblem = groupRuleProblem({
+    input_type: form.input_type,
+    min_select: Number(form.min_select),
+    max_select: Number(form.max_select),
+  });
+
   async function save() {
     setBusy(true);
     try {
@@ -592,12 +601,18 @@ function GroupEditor({ group, onClose, onSaved, onError }) {
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={save}>
+          <button
+            type="button" className="btn btn-primary"
+            disabled={busy || Boolean(ruleProblem)}
+            onClick={save}
+          >
             {busy ? <Spinner /> : 'Save'}
           </button>
         </>
       }
     >
+      {ruleProblem ? <Alert kind="error">{ruleProblem}</Alert> : null}
+
       <Field label="Name">
         <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} />
       </Field>
@@ -605,17 +620,40 @@ function GroupEditor({ group, onClose, onSaved, onError }) {
         <input className="input" value={form.description} onChange={(e) => set({ description: e.target.value })} />
       </Field>
       <Field label="Selection style">
-        <select className="select" value={form.input_type} onChange={(e) => set({ input_type: e.target.value })}>
+        <select
+          className="select"
+          value={form.input_type}
+          onChange={(e) => {
+            const input_type = e.target.value;
+            set(input_type === 'single'
+              ? {
+                input_type,
+                min_select: Math.min(Number(form.min_select) || 0, 1),
+                max_select: Math.min(Number(form.max_select) || 0, 1),
+              }
+              : { input_type });
+          }}
+        >
           <option value="single">Pick one (radio)</option>
           <option value="multi">Pick several (checkbox)</option>
         </select>
       </Field>
       <div className="grid grid-2">
         <Field label="Minimum picks">
-          <input className="input" type="number" min="0" value={form.min_select} onChange={(e) => set({ min_select: e.target.value })} />
+          <input
+            className="input" type="number" min="0"
+            max={form.input_type === 'single' ? 1 : undefined}
+            value={form.min_select} onChange={(e) => set({ min_select: e.target.value })}
+          />
         </Field>
         <Field label="Maximum picks" hint="0 means no limit.">
-          <input className="input" type="number" min="0" value={form.max_select} onChange={(e) => set({ max_select: e.target.value })} />
+          <input
+            className="input" type="number" min="0"
+            max={form.input_type === 'single' ? 1 : undefined}
+            disabled={form.input_type === 'single'}
+            value={form.input_type === 'single' ? 1 : form.max_select}
+            onChange={(e) => set({ max_select: e.target.value })}
+          />
         </Field>
       </div>
       <div className="row-wrap">
