@@ -4,24 +4,13 @@ import { api, money } from '../../lib/api';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Alert, Field, Spinner, Empty } from '../../components/ui';
-
-/**
- * Landmarks around the shop, so delivery can be demonstrated without wiring
- * up a Places autocomplete. Swap this for Google Places or Grab's own address
- * lookup when you have an API key — the only thing checkout needs back is an
- * address string plus lat/lng.
- */
-const SAVED_PLACES = [
-  { label: 'One Rockwell, Makati',      address: 'Unit 8-3, One Rockwell, Rockwell Center, Makati City, 1210',            lat: 14.5657, lng: 121.0355 },
-  { label: 'BGC Corporate Center',      address: 'Level 21, BGC Corporate Center, Bonifacio Global City, Taguig, 1634',   lat: 14.5507, lng: 121.0494 },
-  { label: 'Greenbelt, Makati',         address: 'Greenbelt 3, Ayala Center, Makati City, 1224',                          lat: 14.5527, lng: 121.0209 },
-  { label: 'Ortigas Center, Pasig',     address: 'Podium Mall, ADB Avenue, Ortigas Center, Pasig City, 1605',             lat: 14.5853, lng: 121.0600 },
-  { label: 'Eastwood City, Quezon City',address: 'Eastwood City, Bagumbayan, Quezon City, 1110',                          lat: 14.6094, lng: 121.0800 },
-];
+import AddressPicker from '../../components/AddressPicker';
+import { useShop } from '../../context/ShopContext';
 
 export default function Checkout() {
   const cart = useCart();
   const { user } = useAuth();
+  const { shop } = useShop();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -36,7 +25,6 @@ export default function Checkout() {
     payment_method: 'cash',
     notes: '',
   });
-  const [placeIndex, setPlaceIndex] = useState('');
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [error, setError] = useState('');
@@ -94,14 +82,12 @@ export default function Checkout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteKey]);
 
-  function choosePlace(value) {
-    setPlaceIndex(value);
-    if (value === '') {
-      set({ delivery_address: '', delivery_lat: null, delivery_lng: null });
-      return;
-    }
-    const place = SAVED_PLACES[Number(value)];
-    set({ delivery_address: place.address, delivery_lat: place.lat, delivery_lng: place.lng });
+  function chooseDestination(place) {
+    set({
+      delivery_address: place.address,
+      delivery_lat: place.lat,
+      delivery_lng: place.lng,
+    });
   }
 
   async function submit(e) {
@@ -183,20 +169,24 @@ export default function Checkout() {
 
               {wantsDelivery ? (
                 <>
-                  <Field
-                    label="Deliver to"
-                    hint="Pick a saved landmark — a real deployment would use address autocomplete here."
-                  >
-                    <select className="select" value={placeIndex} onChange={(e) => choosePlace(e.target.value)}>
-                      <option value="">Choose a destination…</option>
-                      {SAVED_PLACES.map((p, i) => (
-                        <option key={p.label} value={i}>{p.label}</option>
-                      ))}
-                    </select>
+                  <Field label="Deliver to">
+                    <AddressPicker
+                      value={hasCoords
+                        ? { address: form.delivery_address, lat: form.delivery_lat, lng: form.delivery_lng }
+                        : null}
+                      onChange={chooseDestination}
+                      center={{
+                        lat: shop.pickup_lat ?? 14.5611,
+                        lng: shop.pickup_lng ?? 121.0296,
+                      }}
+                      maxKm={shop.max_delivery_km || 0}
+                    />
                   </Field>
 
                   {hasCoords ? (
-                    <div className="small muted">{form.delivery_address}</div>
+                    <div className="alert alert-ok small">
+                      📍 {form.delivery_address}
+                    </div>
                   ) : null}
 
                   <Field label="Notes for the driver">

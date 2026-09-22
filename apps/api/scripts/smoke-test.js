@@ -202,6 +202,26 @@ async function main() {
     JSON.stringify(deliveryQuote.body));
   check('the quote carries a distance', Number(deliveryQuote.body?.distance_km) > 0);
 
+  // The address picker can drop a pin anywhere, so the radius is enforced on
+  // the server rather than trusted to the map.
+  const farAway = await call('POST', '/delivery/quote', {
+    body: { address: 'Cebu City', lat: 10.3157, lng: 123.8854 },
+  });
+  check('an address beyond the radius is refused', farAway.status === 400, `got ${farAway.status}`);
+  check('the refusal says how far it is',
+    /km away/.test(farAway.body?.error ?? ''), farAway.body?.error);
+
+  const farOrder = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'delivery',
+      contact_name: 'Too Far', contact_phone: '+639170000004',
+      delivery_address: 'Cebu City', delivery_lat: 10.3157, delivery_lng: 123.8854,
+    },
+  });
+  check('and it cannot be ordered either', farOrder.status === 400, `got ${farOrder.status}`);
+
   // ------------------------------------------------------------- checkout
   section('Checkout');
   const order = await call('POST', '/orders', {

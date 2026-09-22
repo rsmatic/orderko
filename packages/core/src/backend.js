@@ -14,7 +14,7 @@ import {
 } from './seed.js';
 import {
   AppError, bad, unauthorized, forbidden, notFound, conflict,
-  round2, slugify, isStaff, publicUser, priceCart, totalsFor,
+  round2, slugify, isStaff, publicUser, priceCart, totalsFor, haversineKm,
   TRANSITIONS, ORDER_STATUS_FOR_DELIVERY,
 } from './rules.js';
 
@@ -221,6 +221,9 @@ export function createBackend({ state, persist, auth, delivery }) {
         pickup_address: s.pickup_address,
         min_order_total: Number(s.min_order_total),
         delivery_enabled: Boolean(s.delivery_enabled),
+        max_delivery_km: Number(s.max_delivery_km ?? 0),
+        pickup_lat: Number(s.pickup_lat),
+        pickup_lng: Number(s.pickup_lng),
         order_lead_mins: Number(s.order_lead_mins),
       },
       categories: db.categories
@@ -239,6 +242,26 @@ export function createBackend({ state, persist, auth, delivery }) {
   }
 
   // --------------------------------------------------------------- delivery
+
+  /**
+   * Refuses a destination outside the delivery radius. Checked here rather
+   * than in the UI: the picker can put a pin anywhere, and the fee formula
+   * will happily quote a fare across the country.
+   */
+  function assertWithinRange(dropoff) {
+    const limit = Number(db.settings.max_delivery_km ?? 0);
+    if (!limit) return;
+    const km = haversineKm(
+      { lat: Number(db.settings.pickup_lat), lng: Number(db.settings.pickup_lng) },
+      { lat: Number(dropoff.lat), lng: Number(dropoff.lng) },
+    );
+    if (km > limit) {
+      throw bad(
+        `That address is about ${Math.round(km)} km away. ` +
+          `We deliver within ${limit} km — choose pickup, or a closer address.`,
+      );
+    }
+  }
 
   const pickupPlace = () => ({
     address: db.settings.pickup_address,
@@ -542,6 +565,7 @@ export function createBackend({ state, persist, auth, delivery }) {
 
       let deliveryQuote = null;
       if (body.fulfillment_type === 'delivery' && body.delivery_lat != null) {
+        assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng });
         deliveryQuote = await delivery.quote({
           pickup: pickupPlace(),
           dropoff: {
@@ -585,6 +609,7 @@ export function createBackend({ state, persist, auth, delivery }) {
         if (body.delivery_lat == null || body.delivery_lng == null) {
           throw bad('Delivery orders need an address with coordinates');
         }
+        assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng });
         const q = await delivery.quote({
           pickup: pickupPlace(),
           dropoff: {
@@ -800,6 +825,7 @@ export function createBackend({ state, persist, auth, delivery }) {
       if (body.lat == null || body.lng == null) {
         throw bad('Delivery quote needs a latitude and longitude');
       }
+      assertWithinRange({ lat: body.lat, lng: body.lng });
       return delivery.quote({
         pickup: pickupPlace(),
         dropoff: { address: body.address, lat: Number(body.lat), lng: Number(body.lng) },
@@ -1041,6 +1067,7 @@ export function createBackend({ state, persist, auth, delivery }) {
         'shop_name', 'logo_url', 'hero_image_url',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
+        'max_delivery_km',
       ];
       const patch = {};
       for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];

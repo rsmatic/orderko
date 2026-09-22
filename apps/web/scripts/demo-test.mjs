@@ -148,6 +148,19 @@ check('driver details captured', Boolean(done.body.delivery.driver_name));
 check('event trail written', done.body.delivery.events.length >= 4);
 check('order can be completed', (await call('PATCH', '/orders/' + oid + '/status', { status: 'completed' }, mT)).ok);
 
+console.log('\nDelivery radius');
+const near = await call('POST', '/delivery/quote', { address: 'BGC', lat: 14.5507, lng: 121.0494 });
+check('a nearby address is quoted', near.ok, near.error);
+const far = await call('POST', '/delivery/quote', { address: 'Cebu', lat: 10.3157, lng: 123.8854 });
+check('a far address is refused', !far.ok && far.status === 400, String(far.status));
+check('the refusal says how far it is', /km away/.test(far.error ?? ''), far.error);
+const farOrder = await call('POST', '/orders', {
+  items: [{ product_id: byo.id, quantity: 1, option_ids: three }],
+  fulfillment_type: 'delivery', contact_name: 'Too Far', contact_phone: '+639170000004',
+  delivery_address: 'Cebu', delivery_lat: 10.3157, delivery_lng: 123.8854,
+}, cT);
+check('and it cannot be ordered either', !farOrder.ok && farOrder.status === 400, String(farOrder.status));
+
 console.log('\nEmail editing');
 const selfEdit = await call('PATCH', '/auth/me', { email: 'chloe.new@orderko.test' }, cT);
 check('a customer can change their own email', selfEdit.ok, selfEdit.error);

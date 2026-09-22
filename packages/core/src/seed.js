@@ -35,6 +35,10 @@ export const seedSettings = () => ({
   pickup_phone: '+63288123456',
   min_order_total: 150,
   delivery_enabled: true,
+  // How far the shop will deliver, straight-line from the pickup point. The
+  // address picker lets a customer drop a pin anywhere, so without this a
+  // pin in another province would quote a fare and be accepted.
+  max_delivery_km: 12,
   order_lead_mins: 20,
 });
 

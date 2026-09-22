@@ -10,11 +10,12 @@
     "test:demo": "node scripts/demo-test.mjs"
   },
   "dependencies": {
+    "@overnight-oats/core": "*",
+    "leaflet": "^1.9.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.1",
-    "recharts": "^2.15.0",
-    "@overnight-oats/core": "*"
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

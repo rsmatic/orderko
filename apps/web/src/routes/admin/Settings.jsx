@@ -32,6 +32,7 @@ export default function Settings() {
           pickup_phone: s.pickup_phone ?? '',
           min_order_total: String(s.min_order_total ?? 0),
           delivery_enabled: Boolean(s.delivery_enabled),
+          max_delivery_km: String(s.max_delivery_km ?? 0),
           order_lead_mins: String(s.order_lead_mins ?? 20),
         });
       })
@@ -64,6 +65,7 @@ export default function Settings() {
         pickup_phone: form.pickup_phone,
         min_order_total: Number(form.min_order_total),
         delivery_enabled: form.delivery_enabled,
+        max_delivery_km: Number(form.max_delivery_km),
         order_lead_mins: Number(form.order_lead_mins),
       });
       setNotice('Settings saved');
@@ -186,6 +188,18 @@ export default function Settings() {
               />
               Offer Grab delivery at checkout
             </label>
+
+            <Field
+              label="Delivery radius (km)"
+              hint="Straight-line from the pickup point. Customers pin their own address on a map, so this is what stops an order from the next province. 0 removes the limit."
+            >
+              <input
+                className="input" type="number" min="0" max="500" step="1"
+                style={{ maxWidth: 140 }}
+                value={form.max_delivery_km}
+                onChange={(e) => set({ max_delivery_km: e.target.value })}
+              />
+            </Field>
 
             <div className={`alert ${grabMode === 'live' ? 'alert-ok' : 'alert-info'} small`}>
               {grabMode === 'live' ? (

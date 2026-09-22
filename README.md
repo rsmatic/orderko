@@ -153,11 +153,23 @@ Switching modes needs no code change.
 
 ### Address lookup
 
-Checkout offers a short list of Metro Manila landmarks instead of a live address
-autocomplete, since that needs a Places API key. Checkout only ever needs an
-address string plus lat/lng — swap `SAVED_PLACES` in
-`apps/web/src/routes/customer/Checkout.jsx` for Google Places or Grab's own
-address lookup and nothing else changes.
+Checkout puts the destination on a map: search by name, drop or drag a pin, or
+use the browser's own location. It runs on Leaflet with OpenStreetMap tiles and
+Nominatim for geocoding, so it needs **no API key and no billing account** —
+unlike Google Maps, which requires both even inside its free tier.
+
+Leaflet loads only when a customer chooses delivery, so the storefront does not
+carry it. Nominatim asks callers to stay under a request a second, which the
+debounced search respects; a busy shop should move to a paid geocoder.
+
+Swapping in Google Places or Grab's own lookup means replacing
+`apps/web/src/components/AddressPicker.jsx`. Everything downstream only wants
+an address string plus lat/lng.
+
+**Delivery radius.** Because a pin can land anywhere, `max_delivery_km` is
+enforced on the server — on the cart quote, on checkout, and on the standalone
+fee lookup. Without it a pin in another province quotes a fare and is accepted.
+Set it in Admin → Shop settings; 0 removes the limit.
 
 ---
 

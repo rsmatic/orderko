@@ -560,3 +560,32 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .img-pick img { width: 100%; height: 100%; object-fit: contain; display: block; padding: .35rem; }
 .img-pick-square { aspect-ratio: 1; max-width: 128px; }
+
+/* -------------------------------------------------------- address picker */
+
+.addr-map {
+  height: 320px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--oat-deep);
+  position: relative;
+  /* Leaflet panes otherwise sit above the cart drawer and modals. */
+  z-index: 0;
+}
+.addr-map-loading { position: absolute; inset: 0; display: grid; place-items: center; }
+.addr-map .leaflet-container { height: 100%; width: 100%; font: inherit; }
+
+.addr-results {
+  list-style: none; margin: 0; padding: 0;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--cream); max-height: 190px; overflow-y: auto;
+}
+.addr-results li + li { border-top: 1px solid var(--oat-deep); }
+.addr-results button {
+  width: 100%; text-align: left; padding: .5rem .7rem;
+  background: none; border: none; cursor: pointer; font-size: .82rem; line-height: 1.35;
+}
+.addr-results button:hover { background: var(--oat); }
+
+@media (max-width: 620px) { .addr-map { height: 260px; } }
