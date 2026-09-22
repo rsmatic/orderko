@@ -1,0 +1,25 @@
+{
+  "name": "overnight-oats",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Overnight oats ordering system: customer storefront, manager console, admin dashboard.",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "build": "npm run build --workspace apps/web",
+    "db:setup": "npm run db:setup --workspace apps/api",
+    "db:reset": "npm run db:reset --workspace apps/api",
+    "smoke": "npm run smoke --workspace apps/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}
