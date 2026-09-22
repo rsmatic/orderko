@@ -44,14 +44,13 @@ work; set `CLOUDFLARED` to override:
 
 ```bash
 # Windows
-curl -Lo "$USERPROFILE/bin/cloudflared.exe" \
-  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+winget install --id Cloudflare.cloudflared
 # macOS
 brew install cloudflared
 # Linux
 curl -Lo cloudflared \
   https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-  && chmod +x cloudflared
+  && chmod +x cloudflared && sudo mv cloudflared /usr/local/bin/
 ```
 
 Before exposing anything, set real secrets in `apps/api/.env`:
