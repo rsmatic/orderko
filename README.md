@@ -35,7 +35,10 @@ npm run dev                 # API on :4000, web on :5173
 ```
 
 That is the whole setup. No database to install, no credentials to configure —
-the store seeds itself at `apps/api/data/store.json` on first run.
+the store seeds itself at `apps/api/data/store.json` on first run, including
+two weeks of sample orders so the dashboards are legible. Set
+`SEED_SAMPLE_ORDERS=false` for a real shop, so your first order is order
+number one.
 
 Open <http://localhost:5173>.
 
@@ -50,6 +53,7 @@ Customers can also order as guests — no account needed.
 ### Other commands
 
 ```bash
+npm run orders:clear  # remove every order, keeping the menu and accounts
 npm run data:reset    # throw away the store and reseed (destroys all data)
 npm run smoke         # end-to-end API check; needs the API running
 npm run test:demo     # same checks against the core's browser adapters

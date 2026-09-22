@@ -17,7 +17,8 @@
     "test:demo": "npm run test:demo --workspace apps/web",
     "data:reset": "npm run data:reset --workspace apps/api",
     "serve": "node scripts/serve-tunnel.mjs",
-    "serve:publish": "node scripts/serve-tunnel.mjs --publish"
+    "serve:publish": "node scripts/serve-tunnel.mjs --publish",
+    "orders:clear": "npm run orders:clear --workspace apps/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

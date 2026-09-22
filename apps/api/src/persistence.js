@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { freshState } from '@overnight-oats/core';
+import { freshState, clearOrders } from '@overnight-oats/core';
 
 /**
  * A JSON file as the database.
@@ -16,7 +16,9 @@ import { freshState } from '@overnight-oats/core';
  * It assumes ONE process. Run a second instance against the same file and they
  * will overwrite each other — see the deployment notes.
  */
-export function createJsonStore({ file, hashPassword, seedPassword, debounceMs = 150 }) {
+export function createJsonStore({
+  file, hashPassword, seedPassword, includeSampleOrders = true, debounceMs = 150,
+}) {
   const dir = path.dirname(file);
   const tmp = `${file}.tmp`;
 
@@ -66,7 +68,7 @@ export function createJsonStore({ file, hashPassword, seedPassword, debounceMs =
           }
           throw err;
         }
-        state = await freshState({ hashPassword, seedPassword });
+        state = await freshState({ hashPassword, seedPassword, includeSampleOrders });
         await fs.mkdir(dir, { recursive: true });
         await writeNow();
         return { state, seeded: true };
@@ -93,9 +95,16 @@ export function createJsonStore({ file, hashPassword, seedPassword, debounceMs =
     },
 
     async reset() {
-      state = await freshState({ hashPassword, seedPassword });
+      state = await freshState({ hashPassword, seedPassword, includeSampleOrders });
       await writeNow();
       return state;
+    },
+
+    /** Drops every order, keeping the catalog, accounts and settings. */
+    async clearOrders() {
+      const { removed } = clearOrders(state);
+      await writeNow();
+      return removed;
     },
   };
 }

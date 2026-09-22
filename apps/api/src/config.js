@@ -43,6 +43,10 @@ export const config = {
   },
 
   seedPassword: process.env.SEED_PASSWORD || 'Password123!',
+
+  // Two weeks of sample orders make the dashboards legible on a first look.
+  // Set false for a real shop, so the first order in the book is a real one.
+  seedSampleOrders: process.env.SEED_SAMPLE_ORDERS !== 'false',
   publicBaseUrl: process.env.PUBLIC_BASE_URL || `http://localhost:${num(process.env.PORT, 4000)}`,
 };
 

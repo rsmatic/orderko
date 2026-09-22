@@ -11,6 +11,7 @@ const store = createJsonStore({
   file: config.dataFile,
   hashPassword: auth.hashPassword,
   seedPassword: config.seedPassword,
+  includeSampleOrders: config.seedSampleOrders,
 });
 
 const { state, seeded } = await store.load();

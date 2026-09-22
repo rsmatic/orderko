@@ -61,8 +61,10 @@ async function main() {
   const health = await call('GET', '/health');
   check('GET /health responds 200', health.status === 200, `got ${health.status}`);
   check('the JSON store is loaded', health.body?.store === 'json', JSON.stringify(health.body));
-  check('the store has seeded orders', Number(health.body?.orders) > 0);
-  console.log(`  (grab mode: ${health.body?.grab_mode}, store: ${health.body?.data_file})`);
+  // An empty order book is a perfectly good state — a cleared store, or one
+  // seeded with SEED_SAMPLE_ORDERS=false — so this reports rather than asserts.
+  check('the store reports an order count', Number.isInteger(Number(health.body?.orders)));
+  console.log(`  (grab mode: ${health.body?.grab_mode}, orders on hand: ${health.body?.orders})`);
 
   // ---------------------------------------------------------------- auth
   section('Authentication');
@@ -233,14 +235,14 @@ async function main() {
   check('the item note survived', order.body?.items?.[0]?.notes === 'Extra cold please');
   check('history starts at pending', order.body?.history?.[0]?.to_status === 'pending');
 
-  const otherCustomer = await call('POST', '/auth/register', {
-    body: {
-      email: `smoke-${Date.now()}@orderko.test`,
-      password: 'Password123!',
-      name: 'Nosy Neighbour',
-    },
-  });
-  const nosyToken = otherCustomer.body?.token;
+  // A fixed address, reused across runs. A unique one per run left an account
+  // behind every time the suite was executed.
+  const NOSY = { email: 'smoke-other@orderko.test', password: 'SmokeTest123!', name: 'Nosy Neighbour' };
+  const registered = await call('POST', '/auth/register', { body: NOSY });
+  const nosyToken = registered.status === 409
+    ? (await call('POST', '/auth/login', { body: { email: NOSY.email, password: NOSY.password } })).body?.token
+    : registered.body?.token;
+  check('a second customer account is available', Boolean(nosyToken));
   const peek = await call('GET', `/orders/${orderId}`, { token: nosyToken });
   check("another customer cannot read someone else's order", peek.status === 403, `got ${peek.status}`);
 

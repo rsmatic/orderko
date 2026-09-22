@@ -20,10 +20,59 @@ import {
 
 const nowIso = () => new Date().toISOString();
 
-/** The shape persisted by whichever storage adapter is in play. */
-export async function freshState({ hashPassword, seedPassword = SEED_PASSWORD } = {}) {
+/** An order book with nothing in it, counters at the start. */
+const emptyOrderBook = () => ({
+  orders: [],
+  orderItems: [],
+  orderItemOptions: [],
+  history: [],
+  nextOrderId: 1,
+  nextItemId: 1,
+  nextOptRowId: 1,
+});
+
+/**
+ * Strips every order and everything hanging off one — items, chosen options,
+ * status history, deliveries and their events — leaving the catalog, accounts
+ * and settings untouched. Counters go back to the start, so the next order is
+ * numbered as if it were the first.
+ *
+ * Audit entries go too: most of them refer to orders that no longer exist.
+ */
+export function clearOrders(state) {
+  const removed = state.orders.length;
+
+  Object.assign(state, emptyOrderBook());
+  state.deliveries = [];
+  state.deliveryEvents = [];
+  state.audit = [];
+
+  Object.assign(state.seq, {
+    order: 1,
+    item: 1,
+    optRow: 1,
+    delivery: 1,
+    event: 1,
+    audit: 1,
+  });
+
+  return { state, removed };
+}
+
+/**
+ * The shape persisted by whichever storage adapter is in play.
+ *
+ * `includeSampleOrders` seeds two weeks of history so the kitchen board and
+ * the reports are not empty on a first look. A real shop wants it off, so the
+ * first order in the book is a real one.
+ */
+export async function freshState({
+  hashPassword,
+  seedPassword = SEED_PASSWORD,
+  includeSampleOrders = true,
+} = {}) {
   const options = seedOptions();
-  const seeded = seedOrders(options);
+  const seeded = includeSampleOrders ? seedOrders(options) : emptyOrderBook();
   const users = seedUsers();
 
   for (const u of users) {

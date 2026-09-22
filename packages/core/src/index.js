@@ -1,4 +1,4 @@
-export { createBackend, freshState, AppError } from './backend.js';
+export { createBackend, freshState, clearOrders, AppError } from './backend.js';
 export { createSimulatedDelivery } from './delivery-sim.js';
 export {
   round2, slugify, isStaff, publicUser,

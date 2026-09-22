@@ -8,7 +8,8 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "data:reset": "node scripts/reset-data.js",
-    "smoke": "node scripts/smoke-test.js"
+    "smoke": "node scripts/smoke-test.js",
+    "orders:clear": "node scripts/clear-orders.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
