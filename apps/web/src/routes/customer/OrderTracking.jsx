@@ -222,10 +222,14 @@ export default function OrderTracking() {
                 <span className="mono">{money(order.delivery_fee, order.currency)}</span>
               </div>
             ) : null}
-            <div className="totals-row">
-              <span className="muted">Tax</span>
-              <span className="mono">{money(order.tax, order.currency)}</span>
-            </div>
+            {/* Keyed off what this order was actually charged, not the shop's
+                current rate, so an old receipt still reads correctly. */}
+            {Number(order.tax) > 0 ? (
+              <div className="totals-row">
+                <span className="muted">Tax</span>
+                <span className="mono">{money(order.tax, order.currency)}</span>
+              </div>
+            ) : null}
             <div className="totals-total">
               <span>Total</span>
               <span className="mono">{money(order.total, order.currency)}</span>

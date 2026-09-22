@@ -299,10 +299,14 @@ export default function Checkout() {
                   </span>
                 </div>
               ) : null}
-              <div className="totals-row">
-                <span className="muted">Tax</span>
-                <span className="mono">{money(quote?.tax ?? 0)}</span>
-              </div>
+              {/* A shop below the VAT threshold charges none — showing a
+                  zero line just invites the question. */}
+              {Number(quote?.tax) > 0 ? (
+                <div className="totals-row">
+                  <span className="muted">Tax</span>
+                  <span className="mono">{money(quote.tax)}</span>
+                </div>
+              ) : null}
               <div className="totals-total">
                 <span>Total</span>
                 <span className="mono">{money(quote?.total ?? 0)}</span>
