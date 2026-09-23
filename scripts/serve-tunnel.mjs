@@ -76,7 +76,20 @@ async function run(command, args) {
 
 // ---------------------------------------------------------------- the API
 
-const api = start('api', 'node', ['src/index.js'], { cwd: path.join(root, 'apps', 'api') });
+// Watched, because this runs for days at a time and Node reads the source once
+// at startup: without it, pulling a change leaves the API serving the old code
+// with nothing on screen to say so, and the first sign is a route that answers
+// 404. The paths are named explicitly so only source restarts it — the store
+// is written on every order and must not.
+//
+// A restart is safe: SIGTERM closes the server and flushes the debounced write
+// before exiting, which is the same path a manual Ctrl+C takes.
+const api = start(
+  'api',
+  'node',
+  ['--watch-path=src', '--watch-path=../../packages/core/src', 'src/index.js'],
+  { cwd: path.join(root, 'apps', 'api') },
+);
 api.stdout.on('data', (d) => String(d).trimEnd().split('\n').forEach((l) => log('api', l)));
 api.stderr.on('data', (d) => String(d).trimEnd().split('\n').forEach((l) => log('api', l)));
 
