@@ -489,6 +489,18 @@ async function main() {
     body: { email: 'cust@orderko.test', password: PASSWORD },
   })).ok);
 
+  // What the browser actually sends: both names, same value, so the page keeps
+  // working against an API that has not been restarted yet.
+  check('both field names together sign in', (await call('POST', '/auth/login', {
+    body: { identifier: 'cust@orderko.test', email: 'cust@orderko.test', password: PASSWORD },
+  })).ok);
+  const bothWithNumber = await call('POST', '/auth/login', {
+    body: { identifier: '0917 000 0003', email: '0917 000 0003', password: PASSWORD },
+  });
+  check('a number sent under both names still signs in',
+    bothWithNumber.ok && bothWithNumber.body?.user?.email === 'cust@orderko.test',
+    bothWithNumber.body?.error);
+
   // A number that signs you in has to point at one account, or it is a lottery.
   const takenNumber = await call('PATCH', '/auth/me', {
     token: customerToken, body: { phone: '+639170000001' },

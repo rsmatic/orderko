@@ -19,8 +19,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   // The identifier is an email address or the mobile number on the account.
+  //
+  // Sent under both names on purpose. The site redeploys the moment a change
+  // is pushed, but the API is restarted by hand, so there is always a window
+  // where this page is talking to an API that only reads 'email' — and during
+  // that window, sending only 'identifier' locks everyone out.
   const login = useCallback(async (identifier, password) => {
-    const res = await api.post('/auth/login', { identifier, password });
+    const res = await api.post('/auth/login', { identifier, email: identifier, password });
     tokenStore.set(res.token);
     setUser(res.user);
     return res.user;
