@@ -115,9 +115,13 @@ async function main() {
   check('fruit mix has banana, mango and dragon fruit',
     ['Banana', 'Mango', 'Dragon Fruit'].every((n) => fruitGroup?.options?.some((o) => o.name === n)));
 
-  const nutsGroup = byo?.option_groups?.find((g) => g.slug === 'nuts-seeds');
-  check('add-ons include walnuts and chia seeds',
-    ['Walnuts', 'Chia Seeds'].every((n) => nutsGroup?.options?.some((o) => o.name === n)));
+  const nutsGroup = byo?.option_groups?.find((g) => g.slug === 'nuts');
+  const seedsGroup = byo?.option_groups?.find((g) => g.slug === 'seeds');
+  check('nuts and seeds are separate groups', Boolean(nutsGroup) && Boolean(seedsGroup));
+  check('walnuts are under Nuts', nutsGroup?.options?.some((o) => o.name === 'Walnuts'));
+  check('chia seeds are under Seeds', seedsGroup?.options?.some((o) => o.name === 'Chia Seeds'));
+  check('no nut ended up among the seeds',
+    !seedsGroup?.options?.some((o) => ['Walnuts', 'Almonds', 'Crushed Peanuts'].includes(o.name)));
 
   const spreads = byo?.option_groups?.find((g) => g.slug === 'spreads');
   check('spreads include Skippy peanut butter',
@@ -135,7 +139,7 @@ async function main() {
   const dragon = fruitGroup.options.find((o) => o.name === 'Dragon Fruit');
   const strawberry = fruitGroup.options.find((o) => o.name === 'Strawberry');
   const walnuts = nutsGroup.options.find((o) => o.name === 'Walnuts');
-  const chia = nutsGroup.options.find((o) => o.name === 'Chia Seeds');
+  const chia = seedsGroup.options.find((o) => o.name === 'Chia Seeds');
   const skippy = spreads.options.find((o) => o.name.includes('Skippy'));
 
   const threeFruits = [size.id, milk.id, banana.id, mango.id, dragon.id, walnuts.id, chia.id, skippy.id];

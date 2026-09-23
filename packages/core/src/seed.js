@@ -95,10 +95,11 @@ export const seedOptionGroups = () => [
   { id: 1, name: 'Jar Size',     slug: 'jar-size',   description: 'How hungry are you?',                 input_type: 'single', min_select: 1, max_select: 1, is_required: 1, sort_order: 1, is_active: 1 },
   { id: 2, name: 'Milk Base',    slug: 'milk-base',  description: 'What we soak the oats in overnight.', input_type: 'single', min_select: 1, max_select: 1, is_required: 1, sort_order: 2, is_active: 1 },
   { id: 3, name: 'Fruit Mix',    slug: 'fruit-mix',  description: 'Mix and match up to 3 fresh fruits.', input_type: 'multi',  min_select: 1, max_select: 3, is_required: 1, sort_order: 3, is_active: 1 },
-  { id: 4, name: 'Nuts & Seeds', slug: 'nuts-seeds', description: 'Crunch and protein.',                 input_type: 'multi',  min_select: 0, max_select: 0, is_required: 0, sort_order: 4, is_active: 1 },
-  { id: 5, name: 'Spreads',      slug: 'spreads',    description: 'Stirred through or swirled on top.',  input_type: 'multi',  min_select: 0, max_select: 2, is_required: 0, sort_order: 5, is_active: 1 },
-  { id: 6, name: 'Sweetener',    slug: 'sweetener',  description: 'Pick one, or skip it entirely.',      input_type: 'single', min_select: 0, max_select: 1, is_required: 0, sort_order: 6, is_active: 1 },
-  { id: 7, name: 'Extras',       slug: 'extras',     description: 'Little upgrades.',                    input_type: 'multi',  min_select: 0, max_select: 0, is_required: 0, sort_order: 7, is_active: 1 },
+  { id: 4, name: 'Nuts',         slug: 'nuts',       description: 'Toasted, for crunch.',                input_type: 'multi',  min_select: 0, max_select: 0, is_required: 0, sort_order: 4, is_active: 1 },
+  { id: 8, name: 'Seeds',        slug: 'seeds',      description: 'Stirred through for protein.',        input_type: 'multi',  min_select: 0, max_select: 0, is_required: 0, sort_order: 5, is_active: 1 },
+  { id: 5, name: 'Spreads',      slug: 'spreads',    description: 'Stirred through or swirled on top.',  input_type: 'multi',  min_select: 0, max_select: 2, is_required: 0, sort_order: 6, is_active: 1 },
+  { id: 6, name: 'Sweetener',    slug: 'sweetener',  description: 'Pick one, or skip it entirely.',      input_type: 'single', min_select: 0, max_select: 1, is_required: 0, sort_order: 7, is_active: 1 },
+  { id: 7, name: 'Extras',       slug: 'extras',     description: 'Little upgrades.',                    input_type: 'multi',  min_select: 0, max_select: 0, is_required: 0, sort_order: 8, is_active: 1 },
 ];
 
 const OPTION_ROWS = [
@@ -124,10 +125,10 @@ const OPTION_ROWS = [
   [4, 'Walnuts',         'Toasted halves.',                      30,  1],
   [4, 'Almonds',         'Sliced and toasted.',                  25,  2],
   [4, 'Crushed Peanuts', 'Roasted and lightly salted.',          20,  3],
-  [4, 'Chia Seeds',      'One tablespoon, soaked in.',           20,  4],
-  [4, 'Pumpkin Seeds',   'Dry-roasted pepitas.',                 20,  5],
-  [4, 'Flax Seeds',      'Ground, for the omega-3s.',            15,  6],
-  [4, 'Granola Crunch',  'House-baked oat cluster topping.',     40,  7],
+
+  [8, 'Chia Seeds',      'One tablespoon, soaked in.',           20,  1],
+  [8, 'Pumpkin Seeds',   'Dry-roasted pepitas.',                 20,  2],
+  [8, 'Flax Seeds',      'Ground, for the omega-3s.',            15,  3],
 
   [5, 'Peanut Butter (Skippy)', 'Creamy, one generous scoop.',   40,  1],
   [5, 'Almond Butter',   'Unsweetened, stone-ground.',           50,  2],
@@ -139,11 +140,12 @@ const OPTION_ROWS = [
   [6, 'Muscovado',       'Unrefined Negros cane sugar.',         20,  3],
   [6, 'Date Syrup',      'Refined-sugar free.',                  25,  4],
 
-  [7, 'Protein Scoop',   'Unflavoured whey, 20g protein.',       55,  1],
-  [7, 'Cacao Nibs',      'Bitter dark chocolate crunch.',        25,  2],
-  [7, 'Toasted Coconut', 'Shaved and toasted.',                  20,  3],
-  [7, 'Cinnamon Dust',   'Ceylon cinnamon.',                      0,  4],
-  [7, 'Extra Oats',      'Half portion more of the base.',       25,  5],
+  [7, 'Granola Crunch',  'House-baked oat cluster topping.',     40,  1],
+  [7, 'Protein Scoop',   'Unflavoured whey, 20g protein.',       55,  2],
+  [7, 'Cacao Nibs',      'Bitter dark chocolate crunch.',        25,  3],
+  [7, 'Toasted Coconut', 'Shaved and toasted.',                  20,  4],
+  [7, 'Cinnamon Dust',   'Ceylon cinnamon.',                      0,  5],
+  [7, 'Extra Oats',      'Half portion more of the base.',       25,  6],
 ];
 
 export const seedOptions = () =>
@@ -163,10 +165,10 @@ export const seedOptions = () =>
 // Build Your Own offers everything; signature jars skip the milk choice because
 // it is already part of the recipe. Cold Brew has no choices at all.
 export const seedProductOptionGroups = () => [
-  ...[1, 2, 3, 4, 5, 6, 7].map((g, i) => ({ product_id: 1, group_id: g, sort_order: i })),
-  ...[1, 3, 4, 5, 6, 7].map((g, i) => ({ product_id: 2, group_id: g, sort_order: i })),
-  ...[1, 3, 4, 5, 6, 7].map((g, i) => ({ product_id: 3, group_id: g, sort_order: i })),
-  ...[1, 3, 4, 5, 6, 7].map((g, i) => ({ product_id: 4, group_id: g, sort_order: i })),
+  ...[1, 2, 3, 4, 8, 5, 6, 7].map((g, i) => ({ product_id: 1, group_id: g, sort_order: i })),
+  ...[1, 3, 4, 8, 5, 6, 7].map((g, i) => ({ product_id: 2, group_id: g, sort_order: i })),
+  ...[1, 3, 4, 8, 5, 6, 7].map((g, i) => ({ product_id: 3, group_id: g, sort_order: i })),
+  ...[1, 3, 4, 8, 5, 6, 7].map((g, i) => ({ product_id: 4, group_id: g, sort_order: i })),
 ];
 
 function daysAgo(n) {

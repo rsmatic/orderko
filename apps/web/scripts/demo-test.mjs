@@ -52,9 +52,11 @@ const fruit = byo.option_groups.find((g) => g.slug === 'fruit-mix');
 check('fruit mix capped at 3', fruit.max_select === 3);
 check('has banana, mango, dragon fruit',
   ['Banana', 'Mango', 'Dragon Fruit'].every((n) => fruit.options.some((o) => o.name === n)));
-const nuts = byo.option_groups.find((g) => g.slug === 'nuts-seeds');
-check('has walnuts and chia seeds',
-  ['Walnuts', 'Chia Seeds'].every((n) => nuts.options.some((o) => o.name === n)));
+const nuts = byo.option_groups.find((g) => g.slug === 'nuts');
+const seeds = byo.option_groups.find((g) => g.slug === 'seeds');
+check('nuts and seeds are separate groups', Boolean(nuts) && Boolean(seeds));
+check('walnuts are under Nuts', nuts.options.some((o) => o.name === 'Walnuts'));
+check('chia seeds are under Seeds', seeds.options.some((o) => o.name === 'Chia Seeds'));
 const spreads = byo.option_groups.find((g) => g.slug === 'spreads');
 check('has Skippy peanut butter', spreads.options.some((o) => o.name.includes('Skippy')));
 check('milk base is single-choice', byo.option_groups.find((g) => g.slug === 'milk-base').input_type === 'single');

@@ -102,7 +102,7 @@ export async function freshState({
     seq: {
       user: 4,
       product: 6,
-      group: 8,
+      group: 9,
       option: options.length + 1,
       category: 4,
       order: seeded.nextOrderId,

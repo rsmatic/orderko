@@ -77,10 +77,11 @@ rules are data, not code:
 | Jar Size | pick one | required |
 | Milk Base | pick one | required — fresh, oat, almond, soy, coconut, Greek yogurt |
 | **Fruit Mix** | **pick several** | **required, max 3** — banana, mango, dragon fruit, strawberry, blueberry, kiwi, green apple |
-| Nuts & Seeds | pick several | optional — walnuts, almonds, crushed peanuts, chia, pumpkin, flax, granola |
+| Nuts | pick several | optional — walnuts, almonds, crushed peanuts |
+| Seeds | pick several | optional — chia, pumpkin, flax |
 | Spreads | pick several | optional, max 2 — **Skippy peanut butter**, almond butter, Nutella, Biscoff |
 | Sweetener | pick one | optional — honey, maple, muscovado, date syrup |
-| Extras | pick several | optional — protein scoop, cacao nibs, toasted coconut, cinnamon, extra oats |
+| Extras | pick several | optional — granola crunch, protein scoop, cacao nibs, toasted coconut, cinnamon, extra oats |
 
 A manager can add a group, change its min/max, or add a new fruit, and the
 ordering page picks it up on the next load.
