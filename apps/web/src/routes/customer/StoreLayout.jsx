@@ -23,7 +23,7 @@ export default function StoreLayout() {
                 ? <img src={shop.logo_url} alt="" />
                 : '🥣'}
             </span>
-            {shop.shop_name}
+            <span className="brand-name">{shop.shop_name}</span>
           </Link>
 
           <nav className="row grow" style={{ justifyContent: 'flex-end' }}>

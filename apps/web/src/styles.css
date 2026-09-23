@@ -602,3 +602,43 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: linear-gradient(var(--cream), var(--berry-soft));
   border-bottom-color: #f0ccd5;
 }
+
+/* ------------------------------------------------------------- checkout */
+
+/* This lived in an inline style, where no media query could reach it, so on a
+   phone the summary claimed its 280px minimum and squeezed the form into
+   whatever was left. */
+.checkout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+}
+.checkout-summary { position: sticky; top: 5rem; }
+
+@media (max-width: 860px) {
+  .checkout-grid { grid-template-columns: 1fr; }
+  /* Stacked, the summary sits at the end of the page; sticking it there just
+     pins it to the bottom of a scroll it no longer needs to follow. */
+  .checkout-summary { position: static; }
+}
+
+/* ------------------------------------------------------- header on a phone */
+
+/* A flex item will not shrink below its content by default, so a long shop
+   name pushed straight through the nav instead of giving way.
+   Scoped to the header: on the sign-in pages .brand sits in a column, where
+   growing would stretch it vertically. */
+.store-header-inner .brand { min-width: 0; flex: 1; }
+.store-header-inner > nav { flex: none; }
+
+.brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .brand { font-size: 1rem; }
+  .store-header-inner { gap: .5rem; }
+}

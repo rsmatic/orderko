@@ -150,7 +150,7 @@ export default function Checkout() {
       <Link to="/" className="small muted">← Back to the menu</Link>
       <h1 style={{ margin: '.6rem 0 1.25rem' }}>Checkout</h1>
 
-      <form onSubmit={submit} className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, 1fr)', alignItems: 'start', gap: '1.5rem' }}>
+      <form onSubmit={submit} className="checkout-grid">
         <div className="stack">
           <section className="panel">
             <div className="panel-head"><h3>How do you want it?</h3></div>
@@ -277,7 +277,7 @@ export default function Checkout() {
           ) : null}
         </div>
 
-        <aside className="panel" style={{ position: 'sticky', top: '5rem' }}>
+        <aside className="panel checkout-summary">
           <div className="panel-head"><h3>Order summary</h3></div>
           <div className="panel-body stack">
             {(quote?.items ?? []).map((item, i) => (
