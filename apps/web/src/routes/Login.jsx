@@ -5,12 +5,6 @@ import { Alert, Field, Spinner } from '../components/ui';
 import DemoBanner from '../components/DemoBanner';
 import GoogleSignIn from '../components/GoogleSignIn';
 
-const DEMO = [
-  { role: 'Admin',    email: 'admin@orderko.test' },
-  { role: 'Manager',  email: 'manager@orderko.test' },
-  { role: 'Customer', email: 'cust@orderko.test' },
-];
-
 const landingFor = (role) =>
   role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/';
 
@@ -74,20 +68,6 @@ export default function Login() {
             </div>
           </div>
         </form>
-
-        <div className="card card-pad stack-s">
-          <div className="tiny strong muted">Seeded accounts · password Password123!</div>
-          {DEMO.map((d) => (
-            <button
-              key={d.email}
-              type="button"
-              className="btn btn-sm"
-              onClick={() => { setIdentifier(d.email); setPassword('Password123!'); }}
-            >
-              {d.role} — {d.email}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
     </>
