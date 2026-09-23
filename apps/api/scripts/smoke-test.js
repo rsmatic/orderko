@@ -584,10 +584,35 @@ async function main() {
   });
   check('an invented payment method is rejected', madeUp.status === 400, `got ${madeUp.status}`);
 
+  // The QR is the shop's own picture out of the GCash app; it cannot be built
+  // from the number, so all the server can do is carry it and check its size.
+  const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const setQr = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { gcash_qr_url: tinyPng },
+  });
+  check('an admin can upload a GCash QR', setQr.status === 200, setQr.body?.error);
+  check('the storefront can read the QR',
+    (await call('GET', '/catalog/settings')).body?.gcash_qr_url === tinyPng);
+
+  const notAnImage = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { gcash_qr_url: 'javascript:alert(1)' },
+  });
+  check('a QR that is not an image is rejected', notAnImage.status === 400,
+    `got ${notAnImage.status}`);
+
+  const hugeQr = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { gcash_qr_url: 'data:image/png;base64,' + 'A'.repeat(500_000) },
+  });
+  check('an oversized QR is rejected', hugeQr.status === 400, `got ${hugeQr.status}`);
+  check('the good QR survived the refusals',
+    (await call('GET', '/catalog/settings')).body?.gcash_qr_url === tinyPng);
+
   // Put the shop back the way it was found.
   await call('PUT', '/admin/settings', {
-    token: adminToken, body: { gcash_number: '', gcash_name: '' },
+    token: adminToken, body: { gcash_number: '', gcash_name: '', gcash_qr_url: '' },
   });
+  check('the QR can be cleared',
+    (await call('GET', '/catalog/settings')).body?.gcash_qr_url === '');
   check('clearing the number switches GCash off',
     (await call('GET', '/catalog/settings')).body?.gcash_number === '');
 

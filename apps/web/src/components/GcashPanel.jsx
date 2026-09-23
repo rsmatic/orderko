@@ -22,6 +22,7 @@ export default function GcashPanel({ amount, currency, children }) {
   if (!number) return null;
 
   const accountName = String(shop?.gcash_name ?? '').trim() || shop?.shop_name;
+  const qr = String(shop?.gcash_qr_url ?? '').trim();
 
   async function copy() {
     try {
@@ -42,6 +43,15 @@ export default function GcashPanel({ amount, currency, children }) {
           <div className="tiny muted">{accountName}</div>
         </div>
       </div>
+
+      {qr ? (
+        <figure className="gcash-qr">
+          <img src={qr} alt={`GCash QR code for ${accountName}`} />
+          <figcaption className="tiny muted">
+            Scan this in your GCash app, or send to the number below.
+          </figcaption>
+        </figure>
+      ) : null}
 
       <button type="button" className="gcash-number" onClick={copy} title="Tap to copy">
         <span className="mono">{formatPhone(number)}</span>

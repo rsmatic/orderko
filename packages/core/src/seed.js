@@ -36,6 +36,9 @@ export const seedSettings = () => ({
   // is exactly what a receiving number is for.
   gcash_number: '',
   gcash_name: '',
+  // The shop's own QR, saved out of the GCash app. It cannot be derived from
+  // the number: a GCash QR carries a merchant payload GCash itself issues.
+  gcash_qr_url: '',
   currency: 'PHP',
   // Philippine VAT. Change it in Admin → Shop settings if your registration
   // differs — a small shop below the VAT threshold may not charge it at all.

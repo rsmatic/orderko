@@ -258,6 +258,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         // whole point of it. Nothing secret lives in settings.
         gcash_number: s.gcash_number ?? '',
         gcash_name: s.gcash_name ?? '',
+        gcash_qr_url: s.gcash_qr_url ?? '',
         currency: s.currency,
         tax_rate: Number(s.tax_rate),
         pickup_address: s.pickup_address,
@@ -1221,7 +1222,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireRole(user, 'admin');
       const allowed = [
         'shop_name', 'logo_url', 'hero_image_url', 'show_included_label',
-        'google_client_id', 'gcash_number', 'gcash_name',
+        'google_client_id', 'gcash_number', 'gcash_name', 'gcash_qr_url',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
         'max_delivery_km', 'grab_mode',
@@ -1245,7 +1246,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       }
       if (patch.gcash_name !== undefined) patch.gcash_name = String(patch.gcash_name ?? '').trim();
 
-      for (const k of ['logo_url', 'hero_image_url']) {
+      for (const k of ['logo_url', 'hero_image_url', 'gcash_qr_url']) {
         if (patch[k] === undefined) continue;
         const value = String(patch[k] ?? '').trim();
         if (value.length > MAX_IMAGE_CHARS) {

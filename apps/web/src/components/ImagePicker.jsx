@@ -45,7 +45,7 @@ export default function ImagePicker({
 
   return (
     <div className="stack-s">
-      <div className={`img-pick ${shape === 'square' ? 'img-pick-square' : ''}`}>
+      <div className={`img-pick ${shape === 'square' ? 'img-pick-square' : ''}${shape === 'qr' ? 'img-pick-qr' : ''}`}>
         {value
           ? <img src={value} alt="" />
           : <span className="faint tiny">No image set</span>}

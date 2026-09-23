@@ -201,6 +201,14 @@ the customer pays from their own GCash app, the order stays **unpaid**, and
 the shop marks it paid from the order screen once the money lands. Clearing
 the number takes GCash off the checkout again.
 
+You can also upload your **GCash QR code**, and customers scan that instead
+of typing the number. It has to be the picture the GCash app gives you
+(profile -> QR code, or QR Ph on a business account): a real GCash QR carries
+a payment payload only GCash can issue, so one generated from a mobile number
+would scan as plain text and open nothing. The server treats it like the logo
+and the front-page picture — an https:// address or an uploaded image, size-
+capped, because the whole store is rewritten on every order.
+
 The number lives in settings rather than in code because settings are editable
 and this one is meant to be read by every visitor — that is what a receiving
 number is for. It is not a credential, and nothing secret is kept there; the

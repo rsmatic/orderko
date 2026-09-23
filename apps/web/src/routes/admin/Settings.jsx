@@ -27,6 +27,7 @@ export default function Settings() {
           google_client_id: s.google_client_id ?? '',
           gcash_number: s.gcash_number ?? '',
           gcash_name: s.gcash_name ?? '',
+          gcash_qr_url: s.gcash_qr_url ?? '',
           currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
           pickup_address: s.pickup_address ?? '',
@@ -65,6 +66,7 @@ export default function Settings() {
         google_client_id: form.google_client_id.trim(),
         gcash_number: form.gcash_number.trim(),
         gcash_name: form.gcash_name.trim(),
+        gcash_qr_url: form.gcash_qr_url,
         currency: form.currency.toUpperCase(),
         tax_rate: Number(form.tax_rate) / 100,
         pickup_address: form.pickup_address,
@@ -232,6 +234,30 @@ export default function Settings() {
                 onChange={(e) => set({ gcash_name: e.target.value })}
               />
             </Field>
+            <Field label="Your GCash QR code">
+              <ImagePicker
+                value={form.gcash_qr_url}
+                onChange={(v) => set({ gcash_qr_url: v })}
+                shape="qr"
+                hint="Optional. Customers scan this instead of typing the number."
+              />
+            </Field>
+            <details className="small muted">
+              <summary style={{ cursor: 'pointer' }}>Where do I get my QR code?</summary>
+              <ol style={{ margin: '.5rem 0 0', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
+                <li>Open the <strong>GCash app</strong>.</li>
+                <li>Tap your profile, then <strong>QR code</strong> (a business account calls it <strong>QR Ph</strong>).</li>
+                <li><strong>Download</strong> or screenshot it.</li>
+                <li>Upload that picture here.</li>
+              </ol>
+              <p style={{ marginBottom: 0 }}>
+                It has to be the picture GCash gives you. A QR code cannot be built
+                from a mobile number — a real one carries a payment payload that
+                only GCash can issue, so anything generated here would scan as
+                plain text and not open a payment.
+              </p>
+            </details>
+
             <div className="alert alert-info small">
               Nothing is charged automatically. The customer pays in their own
               GCash app and the order stays <strong>unpaid</strong> until you open
