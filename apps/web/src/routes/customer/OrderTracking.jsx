@@ -5,6 +5,15 @@ import { Loading, Alert, StatusBadge, DeliveryBadge, Empty } from '../../compone
 import { useAuth } from '../../context/AuthContext';
 import GcashPanel from '../../components/GcashPanel';
 
+// 'ewallet' and 'card' say nothing to a customer on their own; what they want
+// to know is when the money changes hands.
+const PAYMENT_LABEL = {
+  cash: 'Cash',
+  card: 'Card',
+  ewallet: 'E-wallet',
+  gcash: 'GCash',
+};
+
 const STEPS = [
   { key: 'pending',    label: 'Order received',   note: 'We have your order' },
   { key: 'confirmed',  label: 'Confirmed',        note: 'The kitchen has it' },
@@ -192,19 +201,39 @@ export default function OrderTracking() {
         </section>
       ) : null}
 
-      {order.payment_method === 'gcash' && order.payment_status !== 'paid' && !cancelled ? (
+      {cancelled ? null : (
         <section className="panel" style={{ marginBottom: '1rem' }}>
-          <div className="panel-head"><h3>Payment</h3></div>
-          <div className="panel-body">
-            <GcashPanel amount={order.total} currency={order.currency}>
-              <div className="tiny muted">
-                Send it from your GCash app. We'll mark this order paid once it
-                arrives — you don't need to do anything else here.
+          <div className="panel-head">
+            <h3>Payment</h3>
+            <span className={`badge ${order.payment_status === 'paid' ? 'badge-leaf' : 'badge-neutral'}`}>
+              {order.payment_status === 'paid' ? 'Paid' : 'Not yet paid'}
+            </span>
+          </div>
+          <div className="panel-body stack">
+            <div className="spread">
+              <span className="muted">{PAYMENT_LABEL[order.payment_method] ?? order.payment_method}</span>
+              <span className="mono strong">{money(order.total, order.currency)}</span>
+            </div>
+
+            {order.payment_method === 'gcash' && order.payment_status !== 'paid' ? (
+              <GcashPanel amount={order.total} currency={order.currency}>
+                <div className="tiny muted">
+                  Send it from your GCash app. We'll mark this order paid once it
+                  arrives — you don't need to do anything else here.
+                </div>
+              </GcashPanel>
+            ) : null}
+
+            {order.payment_status !== 'paid' && order.payment_method !== 'gcash' ? (
+              <div className="small muted">
+                {order.fulfillment_type === 'delivery'
+                  ? 'Pay the rider when your order arrives.'
+                  : 'Pay when you collect your order.'}
               </div>
-            </GcashPanel>
+            ) : null}
           </div>
         </section>
-      ) : null}
+      )}
 
       <section className="panel" style={{ marginBottom: '1rem' }}>
         <div className="panel-head"><h3>What you ordered</h3></div>
