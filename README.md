@@ -109,7 +109,10 @@ Everything a manager can do, plus:
 - **People** — create staff and customer accounts, change email addresses and
   roles, reset passwords, disable accounts. Both the email address and the
   mobile number sign you in, so a change to either is rejected if another
-  account already has it. The last active admin can't be demoted or disabled.
+  account already has it. The last active admin can't be demoted or disabled. An
+  account can also be deleted outright; any orders it placed stay in the books
+  under the name and number given at checkout, because deleting someone should
+  not change what you sold. You cannot delete your own account.
 - **Shop settings** — branding (logo, front-page picture, and whether free
   choices are labelled "Included"), name, currency, tax rate, minimum order,
   prep time, delivery radius, the pickup address Grab collects from, a

@@ -1175,6 +1175,43 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       return { ...publicUser(target), is_active: target.is_active };
     }],
 
+    /**
+     * Deletes an account for good.
+     *
+     * Orders are money that changed hands, so they are kept and detached
+     * instead of going with the account: every order already carries the name,
+     * phone and email given at checkout, so the record stays readable on its
+     * own. Disabling an account keeps it in the list and stops it signing in;
+     * this is for the ones that should not be in the list at all.
+     */
+    ['DELETE', /^\/admin\/users\/(\d+)$/, async (m, body, user) => {
+      requireRole(user, 'admin');
+      const target = db.users.find((u) => u.id === Number(m[1]));
+      if (!target) throw notFound('User not found');
+
+      // Deleting yourself would end your own session mid-request, and the
+      // account doing the deleting is the one that can undo a mistake.
+      if (target.id === user.id) throw bad('You cannot delete your own account');
+      if (
+        target.role === 'admin' && target.is_active &&
+        !db.users.some((u) => u.role === 'admin' && u.is_active && u.id !== target.id)
+      ) {
+        throw bad('This is the last active admin');
+      }
+
+      const detached = db.orders.filter((o) => o.customer_id === target.id);
+      for (const order of detached) order.customer_id = null;
+
+      db.users = db.users.filter((u) => u.id !== target.id);
+      audit(user, 'user.delete', 'user', target.id, {
+        email: target.email,
+        name: target.name,
+        role: target.role,
+        orders_kept: detached.length,
+      });
+      return { deleted: true, id: target.id, orders_kept: detached.length };
+    }],
+
     ['GET', /^\/admin\/settings$/, async (m, body, user) => {
       requireRole(user, 'admin', 'manager');
       return { settings: { ...db.settings }, grab_mode: db.settings.grab_mode ?? 'sim' };

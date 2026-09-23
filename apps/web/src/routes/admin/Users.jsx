@@ -18,6 +18,7 @@ export default function Users() {
   const [role, setRole] = useState('');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
   const load = useCallback(
     (signal) => {
@@ -114,9 +115,20 @@ export default function Users() {
                       </td>
                       <td className="small muted">{dateTime(u.created_at)}</td>
                       <td className="right">
-                        <button type="button" className="btn btn-sm" onClick={() => setEditing(u)}>
-                          Edit
-                        </button>
+                        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
+                          <button type="button" className="btn btn-sm" onClick={() => setEditing(u)}>
+                            Edit
+                          </button>
+                          {u.id === me.id ? null : (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-berry"
+                              onClick={() => setDeleting(u)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -126,6 +138,15 @@ export default function Users() {
           )}
         </div>
       </div>
+
+      {deleting ? (
+        <DeleteUser
+          user={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={async (msg) => { setDeleting(null); await load(); setNotice(msg); }}
+          onError={setError}
+        />
+      ) : null}
 
       {editing ? (
         <UserEditor
@@ -137,6 +158,63 @@ export default function Users() {
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * Deleting an account is not the same as disabling one, and the difference
+ * matters most to whoever is about to press the button — so the dialog says
+ * what happens to the orders, and offers the smaller action instead.
+ */
+function DeleteUser({ user, onClose, onDeleted, onError }) {
+  const [busy, setBusy] = useState(false);
+  const orders = Number(user.order_count) || 0;
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await api.del(`/admin/users/${user.id}`);
+      onDeleted(`${user.name} was deleted`);
+    } catch (err) {
+      onError(err.message);
+      onClose();
+    }
+  }
+
+  return (
+    <Modal
+      title={`Delete ${user.name}?`}
+      subtitle={user.email}
+      onClose={onClose}
+      width="430px"
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" className="btn btn-berry" onClick={remove} disabled={busy}>
+            {busy ? <Spinner /> : 'Delete for good'}
+          </button>
+        </>
+      }
+    >
+      <p style={{ margin: 0 }}>
+        This removes the account for good. They will not be able to sign in, and
+        the name, email address and mobile number go with it.
+      </p>
+
+      {orders > 0 ? (
+        <Alert kind="warn">
+          Their {orders === 1 ? 'order stays' : `${orders} orders stay`} in the
+          books, under the name and number given at checkout — deleting someone
+          should not quietly change what you sold.
+        </Alert>
+      ) : null}
+
+      <div className="small muted">
+        If you only want to stop them signing in, close this and use
+        <strong> Edit</strong> to set the account to disabled instead. That keeps
+        it in this list and can be undone.
+      </div>
+    </Modal>
   );
 }
 

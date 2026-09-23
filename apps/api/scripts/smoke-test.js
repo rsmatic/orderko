@@ -607,6 +607,78 @@ async function main() {
   const audit = await call('GET', '/admin/audit?limit=20', { token: adminToken });
   check('the audit log recorded our changes', audit.body?.entries?.length > 0);
 
+  // ------------------------------------------------ deleting an account
+  section('Deleting an account');
+
+  // A throwaway account, so the suite can be run again against the same store.
+  const doomedEmail = 'smoke-doomed@orderko.test';
+  let doomed = await call('POST', '/admin/users', {
+    token: adminToken,
+    body: { name: 'Doomed Customer', email: doomedEmail, password: PASSWORD, role: 'customer' },
+  });
+  if (doomed.status === 409) {
+    // Left behind by a run that died half way; find it and carry on.
+    const list = await call('GET', '/admin/users?limit=200', { token: adminToken });
+    doomed = { status: 201, body: list.body.users.find((u) => u.email === doomedEmail) };
+  }
+  check('a throwaway account exists', doomed.status === 201 && doomed.body?.id,
+    JSON.stringify(doomed.body));
+  const doomedId = doomed.body.id;
+
+  const doomedToken = await login(doomedEmail);
+  const theirOrder = await call('POST', '/orders', {
+    token: doomedToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Doomed Customer',
+      contact_phone: '+639170000009',
+    },
+  });
+  check('they placed an order', theirOrder.status === 201,
+    JSON.stringify(theirOrder.body?.error ?? theirOrder.body?.details));
+  const theirOrderId = theirOrder.body?.id;
+
+  check('a manager cannot delete an account',
+    (await call('DELETE', `/admin/users/${doomedId}`, { token: managerToken })).status === 403);
+  check('an anonymous request cannot',
+    [401, 403].includes((await call('DELETE', `/admin/users/${doomedId}`)).status));
+  check('the account survived the refusals',
+    (await call('GET', '/admin/users?limit=200', { token: adminToken }))
+      .body.users.some((u) => u.id === doomedId));
+
+  const deleteSelf = await call('DELETE', '/admin/users/1', { token: adminToken });
+  check('an admin cannot delete their own account', deleteSelf.status === 400,
+    `got ${deleteSelf.status}`);
+
+  const gone = await call('DELETE', `/admin/users/${doomedId}`, { token: adminToken });
+  check('an admin can delete an account', gone.status === 200, gone.body?.error);
+  check('it reports the orders it kept', gone.body?.orders_kept === 1,
+    JSON.stringify(gone.body));
+
+  check('the account is off the list',
+    !(await call('GET', '/admin/users?limit=200', { token: adminToken }))
+      .body.users.some((u) => u.id === doomedId));
+  check('they can no longer sign in',
+    (await call('POST', '/auth/login', { body: { identifier: doomedEmail, password: PASSWORD } }))
+      .status === 401);
+  check('deleting them twice is a 404',
+    (await call('DELETE', `/admin/users/${doomedId}`, { token: adminToken })).status === 404);
+
+  // Orders are money that changed hands; they must outlive the account.
+  const keptOrder = await call('GET', `/orders/${theirOrderId}`, { token: adminToken });
+  check('their order is still in the books', keptOrder.status === 200, keptOrder.body?.error);
+  check('it is detached from the deleted account', keptOrder.body?.customer_id === null,
+    String(keptOrder.body?.customer_id));
+  check('but still says who it was for',
+    keptOrder.body?.contact_name === 'Doomed Customer', keptOrder.body?.contact_name);
+  check('and still carries its total', Number(keptOrder.body?.total) > 0);
+
+  const auditLog = await call('GET', '/admin/audit?limit=20', { token: adminToken });
+  check('the deletion is logged',
+    (auditLog.body?.entries ?? auditLog.body?.audit ?? []).some((a) => a.action === 'user.delete'),
+    JSON.stringify(Object.keys(auditLog.body ?? {})));
+
   section('Grab mode switch');
   const modeNow = await call('GET', '/admin/settings', { token: adminToken });
   check('the mode is reported', ['sim', 'live'].includes(modeNow.body?.grab_mode),
