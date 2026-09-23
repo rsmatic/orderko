@@ -31,6 +31,11 @@ export const seedSettings = () => ({
   // Paste from Google Cloud → Credentials → OAuth client ID. Public by
   // design; empty simply hides the Google button.
   google_client_id: '',
+  // Where customers send a GCash payment. Empty hides GCash at checkout.
+  // Set it in Admin -> Shop settings; it is shown to every customer, which
+  // is exactly what a receiving number is for.
+  gcash_number: '',
+  gcash_name: '',
   currency: 'PHP',
   // Philippine VAT. Change it in Admin → Shop settings if your registration
   // differs — a small shop below the VAT threshold may not charge it at all.

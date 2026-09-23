@@ -18,6 +18,7 @@ import {
   TRANSITIONS, ORDER_STATUS_FOR_DELIVERY,
 } from './rules.js';
 import { groupRuleProblem } from './selection.js';
+import { phoneKey, looksLikePhone } from './phone.js';
 
 const nowIso = () => new Date().toISOString();
 
@@ -164,6 +165,38 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     return email;
   }
 
+  /**
+   * Finds the account behind whatever was typed into the sign-in box: an
+   * email address, or the mobile number the account was registered with.
+   */
+  function findByIdentifier(raw) {
+    const text = String(raw ?? '').trim();
+    if (!text) return null;
+    if (!looksLikePhone(text)) {
+      const email = text.toLowerCase();
+      return db.users.find((u) => u.email === email) ?? null;
+    }
+    const key = phoneKey(text);
+    if (!key) return null;
+    const matches = db.users.filter((u) => phoneKey(u.phone) === key);
+    // Two accounts on one number would make this a coin toss. assertPhoneFree
+    // stops new pairs being created, but older data may already hold one, and
+    // signing someone into the wrong account is worse than refusing them.
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  /**
+   * A mobile number can now be used to sign in, so it has to point at a single
+   * account the way an email does. Blank clears it and is always allowed.
+   */
+  function assertPhoneFree(raw, selfId = null) {
+    const key = phoneKey(raw);
+    if (!key) return;
+    if (db.users.some((u) => u.id !== selfId && phoneKey(u.phone) === key)) {
+      throw conflict('Another account already uses that mobile number');
+    }
+  }
+
   function audit(user, action, entity = null, entityId = null, meta = null) {
     db.audit.unshift({
       id: nextId('audit'),
@@ -221,6 +254,10 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         hero_image_url: s.hero_image_url ?? '',
         show_included_label: s.show_included_label !== false,
         google_client_id: s.google_client_id ?? '',
+        // A receiving number is meant to be read by customers — that is the
+        // whole point of it. Nothing secret lives in settings.
+        gcash_number: s.gcash_number ?? '',
+        gcash_name: s.gcash_name ?? '',
         currency: s.currency,
         tax_rate: Number(s.tax_rate),
         pickup_address: s.pickup_address,
@@ -347,18 +384,22 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
   const orderNumberFor = (id) => `OK-${String(240000 + id).padStart(6, '0')}`;
 
+  // Anything else is a typo or a tampered request; the checkout only ever
+  // sends one of these.
+  const PAYMENT_METHODS = ['cash', 'card', 'ewallet', 'gcash'];
+
   // ------------------------------------------------------------ route table
 
   const routes = [
     // ---------------------------------------------------------------- auth
     ['POST', /^\/auth\/login$/, async (m, body) => {
-      const email = String(body.email ?? '').toLowerCase().trim();
-      const user = db.users.find((u) => u.email === email);
-      // Same message either way, so this never confirms which emails exist.
-      if (!user) throw unauthorized('Email or password is incorrect');
+      // 'email' is what older clients send; either field may carry a number.
+      const user = findByIdentifier(body.identifier ?? body.email);
+      // Same message either way, so this never confirms which accounts exist.
+      if (!user) throw unauthorized('Those sign-in details are incorrect');
       if (!user.is_active) throw unauthorized('This account has been deactivated');
       if (!(await auth.verifyPassword(body.password ?? '', user.password_hash))) {
-        throw unauthorized('Email or password is incorrect');
+        throw unauthorized('Those sign-in details are incorrect');
       }
       return { token: await auth.signToken(user), user: publicUser(user) };
     }],
@@ -369,6 +410,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       if (String(body.password ?? '').length < 8) throw bad('Password must be at least 8 characters');
       if (String(body.name ?? '').trim().length < 2) throw bad('Enter your name');
       if (db.users.some((u) => u.email === email)) throw conflict('That email is already registered');
+      assertPhoneFree(body.phone);
 
       const user = {
         id: nextId('user'),
@@ -390,7 +432,10 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireUser(user);
       if (body.email !== undefined) user.email = changeEmail(user, body.email);
       if (body.name !== undefined) user.name = body.name;
-      if (body.phone !== undefined) user.phone = body.phone;
+      if (body.phone !== undefined) {
+        assertPhoneFree(body.phone, user.id);
+        user.phone = body.phone;
+      }
       if (body.password) user.password_hash = await auth.hashPassword(body.password);
       return { user: publicUser(user) };
     }],
@@ -662,6 +707,14 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       if (body.fulfillment_type === 'delivery' && !db.settings.delivery_enabled) {
         throw bad('Delivery is switched off right now');
       }
+      const paymentMethod = body.payment_method ?? 'cash';
+      if (!PAYMENT_METHODS.includes(paymentMethod)) throw bad('Unknown payment method');
+      // Taking a GCash order with nowhere to send the money would strand it in
+      // unpaid with no way for the customer to settle up.
+      if (paymentMethod === 'gcash' && !String(db.settings.gcash_number ?? '').trim()) {
+        throw bad('GCash is not set up for this shop yet');
+      }
+
       const { items, subtotal } = priceCart(db, body.items);
       if (subtotal < Number(db.settings.min_order_total)) {
         throw bad(`Minimum order is ${db.settings.currency} ${Number(db.settings.min_order_total).toFixed(2)}`);
@@ -703,7 +756,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         delivery_lng: body.delivery_lng ?? null,
         ...totals,
         currency: db.settings.currency,
-        payment_method: body.payment_method ?? 'cash',
+        payment_method: paymentMethod,
         payment_status: 'unpaid',
         notes: body.notes ?? null,
         scheduled_for: body.scheduled_for ?? null,
@@ -1084,6 +1137,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const email = String(body.email).toLowerCase().trim();
       if (db.users.some((u) => u.email === email)) throw conflict('That email is already registered');
       if (String(body.password ?? '').length < 8) throw bad('Password must be at least 8 characters');
+      assertPhoneFree(body.phone);
 
       const u = {
         id: nextId('user'),
@@ -1113,6 +1167,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       }
 
       if (body.email !== undefined) target.email = changeEmail(target, body.email);
+      if (body.phone !== undefined) assertPhoneFree(body.phone, target.id);
       for (const k of ['name', 'phone', 'role']) if (body[k] !== undefined) target[k] = body[k];
       if (body.is_active !== undefined) target.is_active = body.is_active ? 1 : 0;
       if (body.password) target.password_hash = await auth.hashPassword(body.password);
@@ -1129,7 +1184,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireRole(user, 'admin');
       const allowed = [
         'shop_name', 'logo_url', 'hero_image_url', 'show_included_label',
-        'google_client_id',
+        'google_client_id', 'gcash_number', 'gcash_name',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
         'max_delivery_km', 'grab_mode',
@@ -1145,6 +1200,13 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         const unavailable = await delivery.whyUnavailable?.(patch.grab_mode);
         if (unavailable) throw bad(unavailable);
       }
+
+      if (patch.gcash_number !== undefined) {
+        const typed = String(patch.gcash_number ?? '').trim();
+        if (typed && !phoneKey(typed)) throw bad('Enter a valid GCash mobile number');
+        patch.gcash_number = typed;
+      }
+      if (patch.gcash_name !== undefined) patch.gcash_name = String(patch.gcash_name ?? '').trim();
 
       for (const k of ['logo_url', 'hero_image_url']) {
         if (patch[k] === undefined) continue;

@@ -33,6 +33,14 @@ check('manager logs in', manager.ok && manager.body.user.role === 'manager');
 check('customer logs in', cust.ok && cust.body.user.role === 'customer');
 const wrongPw = await call('POST', '/auth/login', { email: 'admin@orderko.test', password: 'nope12345' });
 check('wrong password rejected', !wrongPw.ok && wrongPw.status === 401);
+
+// The offline demo runs the same routes, so a number has to sign you in here
+// too — this is what visitors get whenever the API is unreachable.
+const byNumber = await call('POST', '/auth/login', { identifier: '0917 000 0003', password: 'Password123!' });
+check('a mobile number signs in', byNumber.ok && byNumber.body.user.email === 'cust@orderko.test',
+  byNumber.error ?? byNumber.body?.user?.email);
+const unknownNumber = await call('POST', '/auth/login', { identifier: '0999 999 9999', password: 'Password123!' });
+check('an unknown number is rejected', !unknownNumber.ok && unknownNumber.status === 401);
 const aT = admin.body.token;
 const mT = manager.body.token;
 const cT = cust.body.token;

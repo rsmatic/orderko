@@ -11,3 +11,4 @@ export {
   groupRuleProblem,
 } from './selection.js';
 export { SEED_PASSWORD } from './seed.js';
+export { phoneKey, looksLikePhone, formatPhone } from './phone.js';

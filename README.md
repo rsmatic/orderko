@@ -107,13 +107,13 @@ a real Grab fee quote, order tracking with driver details, and order history.
 Everything a manager can do, plus:
 
 - **People** — create staff and customer accounts, change email addresses and
-  roles, reset passwords, disable accounts. Email is the sign-in name, so a
-  change is rejected if another account already uses it. The last active admin
-  can't be demoted or disabled.
+  roles, reset passwords, disable accounts. Both the email address and the
+  mobile number sign you in, so a change to either is rejected if another
+  account already has it. The last active admin can't be demoted or disabled.
 - **Shop settings** — branding (logo, front-page picture, and whether free
   choices are labelled "Included"), name, currency, tax rate, minimum order,
-  prep time, delivery radius, the pickup address Grab collects from, and a
-  delivery on/off switch.
+  prep time, delivery radius, the pickup address Grab collects from, a
+  delivery on/off switch, and the GCash number customers pay to.
 - **Activity log** — every staff change, who made it and when.
 - **Danger zone** — remove every order, behind the admin's own password. The
   menu, accounts and settings are untouched, and the deletion is logged.
@@ -185,11 +185,44 @@ Set it in Admin → Shop settings; 0 removes the limit.
 
 ---
 
+## Paying by GCash
+
+Set a number in **Admin → Shop settings → GCash** and the checkout offers
+GCash alongside cash and card. The customer sees where to send the money —
+tapping the number copies it, digits only, because pasting spaces into GCash
+is what makes it reject the number — and the same panel stays on the order
+page until the payment is confirmed.
+
+Nothing is charged automatically. There is no merchant account and no API key:
+the customer pays from their own GCash app, the order stays **unpaid**, and
+the shop marks it paid from the order screen once the money lands. Clearing
+the number takes GCash off the checkout again.
+
+The number lives in settings rather than in code because settings are editable
+and this one is meant to be read by every visitor — that is what a receiving
+number is for. It is not a credential, and nothing secret is kept there; the
+Grab client secret stays in the API's environment for exactly that reason.
+Because the browser could always be lying about what it picked, the server
+re-checks the payment method against the list it accepts and refuses a GCash
+order outright when no number is set, rather than stranding it in unpaid with
+nowhere to pay.
+
+---
+
 ## Customer sign-in
 
 A customer can order as a guest, or sign in to keep their order history.
 Alongside email and password there is **Sign in with Google**, which appears
 only once a client id is set in Admin → Shop settings.
+
+The sign-in box takes **an email address or the mobile number on the account**.
+Nobody types their number back the way they first entered it, so
+[`phone.js`](packages/core/src/phone.js) reduces both sides to the last ten
+digits before comparing — `0915 386 8303`, `+639153868303` and `9153868303`
+are one account. That makes the number an identifier, so it is held unique the
+way an email is: registration, profile edits and admin edits all refuse a
+number another account already has. Where old data already holds a pair, login
+by number refuses rather than guessing which account was meant.
 
 The account is created when Google vouches for the address, not when someone
 types one at checkout — typing an address proves nothing about owning it. An

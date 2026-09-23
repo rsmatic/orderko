@@ -47,9 +47,10 @@ async function call(method, path, { token, body } = {}) {
   return { status: res.status, ok: res.ok, body: payload };
 }
 
-const login = async (email) => {
-  const res = await call('POST', '/auth/login', { body: { email, password: PASSWORD } });
-  if (!res.ok) throw new Error(`Login failed for ${email}: ${res.body?.error}`);
+/** @param identifier an email address or the mobile number on the account. */
+const login = async (identifier) => {
+  const res = await call('POST', '/auth/login', { body: { identifier, password: PASSWORD } });
+  if (!res.ok) throw new Error(`Login failed for ${identifier}: ${res.body?.error}`);
   return res.body.token;
 };
 
@@ -456,6 +457,127 @@ async function main() {
   await call('PATCH', '/admin/users/3', { token: adminToken, body: { email: 'cust@orderko.test' } });
   check('the seeded address works again',
     (await call('POST', '/auth/login', { body: { email: 'cust@orderko.test', password: PASSWORD } })).ok);
+
+  // ------------------------------------------------ sign in with a number
+  section('Signing in with a mobile number');
+
+  // Chloe is seeded as +639170000003. None of these spellings match that text,
+  // which is the whole point.
+  for (const typed of ['09170000003', '0917 000 0003', '+63 917 000 0003', '9170000003']) {
+    const res = await call('POST', '/auth/login', { body: { identifier: typed, password: PASSWORD } });
+    check(`"${typed}" signs in`, res.ok && res.body?.user?.email === 'cust@orderko.test',
+      res.body?.error ?? res.body?.user?.email);
+  }
+
+  const wrongPass = await call('POST', '/auth/login', {
+    body: { identifier: '0917 000 0003', password: 'nope-not-this-one' },
+  });
+  check('a number with the wrong password is refused', wrongPass.status === 401);
+
+  const unknownNumber = await call('POST', '/auth/login', {
+    body: { identifier: '0999 999 9999', password: PASSWORD },
+  });
+  check('an unknown number is refused', unknownNumber.status === 401);
+  check('and the refusal does not say which part was wrong',
+    unknownNumber.body?.error === wrongPass.body?.error,
+    `${unknownNumber.body?.error} vs ${wrongPass.body?.error}`);
+
+  check('an email still signs in', (await call('POST', '/auth/login', {
+    body: { identifier: 'cust@orderko.test', password: PASSWORD },
+  })).ok);
+  check('an older client sending "email" still works', (await call('POST', '/auth/login', {
+    body: { email: 'cust@orderko.test', password: PASSWORD },
+  })).ok);
+
+  // A number that signs you in has to point at one account, or it is a lottery.
+  const takenNumber = await call('PATCH', '/auth/me', {
+    token: customerToken, body: { phone: '+639170000001' },
+  });
+  check('a number already on another account is refused', takenNumber.status === 409,
+    `got ${takenNumber.status}`);
+  check('the same number typed differently is still refused',
+    (await call('PATCH', '/auth/me', { token: customerToken, body: { phone: '0917 000 0001' } })).status === 409);
+  check('an admin cannot assign a duplicate either',
+    (await call('PATCH', '/admin/users/3', { token: adminToken, body: { phone: '09170000002' } })).status === 409);
+  check('your own number is not a clash with yourself',
+    (await call('PATCH', '/auth/me', { token: customerToken, body: { phone: '0917 000 0003' } })).status === 200);
+
+  // ------------------------------------------------------------------ gcash
+  section('GCash');
+
+  const noNumberYet = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Smoke Tester',
+      contact_phone: '+639170000003',
+      payment_method: 'gcash',
+    },
+  });
+  check('GCash is refused before a number is set', noNumberYet.status === 400,
+    `got ${noNumberYet.status}`);
+
+  const badNumber = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { gcash_number: 'not a number' },
+  });
+  check('a nonsense GCash number is rejected', badNumber.status === 400, `got ${badNumber.status}`);
+
+  const setGcash = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { gcash_number: '0915 386 8303', gcash_name: 'The MANNA' },
+  });
+  check('an admin can set the GCash number', setGcash.status === 200, setGcash.body?.error);
+
+  const managerGcash = await call('PUT', '/admin/settings', {
+    token: managerToken, body: { gcash_number: '0999 999 9999' },
+  });
+  check('a manager cannot change it', managerGcash.status === 403, `got ${managerGcash.status}`);
+
+  const gcashPublic = await call('GET', '/catalog/settings');
+  check('the storefront can read the number', gcashPublic.body?.gcash_number === '0915 386 8303',
+    gcashPublic.body?.gcash_number);
+  check('and the account name', gcashPublic.body?.gcash_name === 'The MANNA');
+
+  const gcashOrder = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Smoke Tester',
+      contact_phone: '+639170000003',
+      payment_method: 'gcash',
+    },
+  });
+  check('a GCash order is accepted once it is set up', gcashOrder.status === 201,
+    JSON.stringify(gcashOrder.body?.error ?? gcashOrder.body?.details));
+  check('it records the method', gcashOrder.body?.payment_method === 'gcash');
+  // Nothing is charged automatically, so it must not claim to be paid.
+  check('it starts unpaid', gcashOrder.body?.payment_status === 'unpaid',
+    gcashOrder.body?.payment_status);
+
+  const marked = await call('PATCH', `/orders/${gcashOrder.body?.id}/payment`, {
+    token: adminToken, body: { payment_status: 'paid' },
+  });
+  check('the shop can mark it paid', marked.status === 200, marked.body?.error);
+
+  const madeUp = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Smoke Tester',
+      contact_phone: '+639170000003',
+      payment_method: 'crypto-beans',
+    },
+  });
+  check('an invented payment method is rejected', madeUp.status === 400, `got ${madeUp.status}`);
+
+  // Put the shop back the way it was found.
+  await call('PUT', '/admin/settings', {
+    token: adminToken, body: { gcash_number: '', gcash_name: '' },
+  });
+  check('clearing the number switches GCash off',
+    (await call('GET', '/catalog/settings')).body?.gcash_number === '');
 
   section('Admin: reports, users, settings');
   const stats = await call('GET', '/admin/stats?days=30', { token: adminToken });

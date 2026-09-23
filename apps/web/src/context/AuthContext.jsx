@@ -18,8 +18,9 @@ export function AuthProvider({ children }) {
     return () => { cancelled = true; };
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  // The identifier is an email address or the mobile number on the account.
+  const login = useCallback(async (identifier, password) => {
+    const res = await api.post('/auth/login', { identifier, password });
     tokenStore.set(res.token);
     setUser(res.user);
     return res.user;

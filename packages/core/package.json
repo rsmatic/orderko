@@ -8,6 +8,6 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node scripts/selection-test.mjs"
+    "test": "node scripts/selection-test.mjs && node scripts/phone-test.mjs"
   }
 }

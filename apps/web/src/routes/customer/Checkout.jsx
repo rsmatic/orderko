@@ -7,6 +7,7 @@ import { Alert, Field, Spinner, Empty } from '../../components/ui';
 import AddressPicker from '../../components/AddressPicker';
 import { useShop } from '../../context/ShopContext';
 import GoogleSignIn from '../../components/GoogleSignIn';
+import GcashPanel from '../../components/GcashPanel';
 
 export default function Checkout() {
   const cart = useCart();
@@ -45,6 +46,14 @@ export default function Checkout() {
 
   const hasCoords = form.delivery_lat != null && form.delivery_lng != null;
   const wantsDelivery = form.fulfillment_type === 'delivery';
+  const hasGcash = Boolean(String(shop?.gcash_number ?? '').trim());
+
+  // The admin can clear the number while a basket is open, and the server
+  // refuses a GCash order once it is gone — so drop back to cash rather than
+  // letting the order be rejected at the last step.
+  useEffect(() => {
+    if (!hasGcash && form.payment_method === 'gcash') set({ payment_method: 'cash' });
+  }, [hasGcash, form.payment_method]);
 
   // Re-quote whenever the basket, mode, or destination changes. The delivery
   // fee comes from Grab (or the mock provider), never from the browser.
@@ -240,12 +249,22 @@ export default function Checkout() {
                   onChange={(e) => set({ payment_method: e.target.value })}
                 >
                   <option value="cash">Cash on {wantsDelivery ? 'delivery' : 'pickup'}</option>
+                  {hasGcash ? <option value="gcash">GCash</option> : null}
                   <option value="card">Card</option>
                   <option value="ewallet">E-wallet</option>
                 </select>
               </Field>
             </div>
           </section>
+
+          {form.payment_method === 'gcash' ? (
+            <section className="panel">
+              <div className="panel-head"><h3>Paying with GCash</h3></div>
+              <div className="panel-body">
+                <GcashPanel amount={quote?.total} currency={quote?.currency} />
+              </div>
+            </section>
+          ) : null}
 
           <section className="panel">
             <div className="panel-head"><h3>Anything for the kitchen?</h3></div>

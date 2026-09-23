@@ -25,6 +25,8 @@ export default function Settings() {
           hero_image_url: s.hero_image_url ?? '',
           show_included_label: s.show_included_label !== false,
           google_client_id: s.google_client_id ?? '',
+          gcash_number: s.gcash_number ?? '',
+          gcash_name: s.gcash_name ?? '',
           currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
           pickup_address: s.pickup_address ?? '',
@@ -61,6 +63,8 @@ export default function Settings() {
         hero_image_url: form.hero_image_url,
         show_included_label: form.show_included_label,
         google_client_id: form.google_client_id.trim(),
+        gcash_number: form.gcash_number.trim(),
+        gcash_name: form.gcash_name.trim(),
         currency: form.currency.toUpperCase(),
         tax_rate: Number(form.tax_rate) / 100,
         pickup_address: form.pickup_address,
@@ -194,6 +198,44 @@ export default function Settings() {
               <Field label="Phone for the driver">
                 <input className="input" type="tel" value={form.pickup_phone} onChange={(e) => set({ pickup_phone: e.target.value })} />
               </Field>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <h3>GCash</h3>
+            <span className={`badge ${form.gcash_number ? 'badge-leaf' : 'badge-neutral'}`}>
+              {form.gcash_number ? 'Offered at checkout' : 'Off'}
+            </span>
+          </div>
+          <div className="panel-body stack">
+            <Field
+              label="GCash mobile number"
+              hint="Where customers send payment. Leave it empty to take GCash off the checkout. Every visitor sees this number — that is what it is for — so use the one you want to be paid on."
+            >
+              <input
+                className="input" type="tel" inputMode="tel"
+                placeholder="0915 386 8303"
+                value={form.gcash_number}
+                onChange={(e) => set({ gcash_number: e.target.value })}
+              />
+            </Field>
+            <Field
+              label="Account name"
+              hint="Shown under the number so customers know the name they should see in GCash. Defaults to the shop name."
+            >
+              <input
+                className="input"
+                placeholder={form.shop_name}
+                value={form.gcash_name}
+                onChange={(e) => set({ gcash_name: e.target.value })}
+              />
+            </Field>
+            <div className="alert alert-info small">
+              Nothing is charged automatically. The customer pays in their own
+              GCash app and the order stays <strong>unpaid</strong> until you open
+              it and press <strong>Mark paid</strong>.
             </div>
           </div>
         </section>

@@ -18,7 +18,7 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -28,7 +28,7 @@ export default function Login() {
     setError('');
     setBusy(true);
     try {
-      const user = await login(email.trim(), password);
+      const user = await login(identifier.trim(), password);
       navigate(location.state?.from ?? landingFor(user.role), { replace: true });
     } catch (err) {
       setError(err.message);
@@ -49,10 +49,11 @@ export default function Login() {
           <div className="panel-body stack">
             {error ? <Alert kind="error" onDismiss={() => setError('')}>{error}</Alert> : null}
 
-            <Field label="Email">
+            <Field label="Email or mobile number">
               <input
-                className="input" type="email" required autoFocus autoComplete="email"
-                value={email} onChange={(e) => setEmail(e.target.value)}
+                className="input" required autoFocus autoComplete="username"
+                placeholder="you@example.com or 0915 386 8303"
+                value={identifier} onChange={(e) => setIdentifier(e.target.value)}
               />
             </Field>
             <Field label="Password">
@@ -81,7 +82,7 @@ export default function Login() {
               key={d.email}
               type="button"
               className="btn btn-sm"
-              onClick={() => { setEmail(d.email); setPassword('Password123!'); }}
+              onClick={() => { setIdentifier(d.email); setPassword('Password123!'); }}
             >
               {d.role} — {d.email}
             </button>
@@ -145,7 +146,7 @@ export function Register() {
                 value={form.email} onChange={(e) => set({ email: e.target.value })}
               />
             </Field>
-            <Field label="Phone" hint="So we can reach you about the order.">
+            <Field label="Mobile number" hint="We use it to reach you about the order — and you can sign in with it.">
               <input
                 className="input" type="tel" placeholder="+63 917 123 4567"
                 value={form.phone} onChange={(e) => set({ phone: e.target.value })}

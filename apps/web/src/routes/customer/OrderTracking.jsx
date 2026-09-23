@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, money, dateTime } from '../../lib/api';
 import { Loading, Alert, StatusBadge, DeliveryBadge, Empty } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import GcashPanel from '../../components/GcashPanel';
 
 const STEPS = [
   { key: 'pending',    label: 'Order received',   note: 'We have your order' },
@@ -187,6 +188,20 @@ export default function OrderTracking() {
                 ))}
               </div>
             ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {order.payment_method === 'gcash' && order.payment_status !== 'paid' && !cancelled ? (
+        <section className="panel" style={{ marginBottom: '1rem' }}>
+          <div className="panel-head"><h3>Payment</h3></div>
+          <div className="panel-body">
+            <GcashPanel amount={order.total} currency={order.currency}>
+              <div className="tiny muted">
+                Send it from your GCash app. We'll mark this order paid once it
+                arrives — you don't need to do anything else here.
+              </div>
+            </GcashPanel>
           </div>
         </section>
       ) : null}
