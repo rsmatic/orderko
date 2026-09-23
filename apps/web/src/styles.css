@@ -594,3 +594,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .google-btn { display: flex; justify-content: center; min-height: 44px; }
 .google-btn:empty { display: none; }
+
+/* ----------------------------------------------------------- danger zone */
+
+.panel-danger { border-color: #f0ccd5; }
+.panel-danger .panel-head {
+  background: linear-gradient(var(--cream), var(--berry-soft));
+  border-bottom-color: #f0ccd5;
+}

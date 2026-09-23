@@ -114,6 +114,8 @@ Everything a manager can do, plus:
   prep time, delivery radius, the pickup address Grab collects from, and a
   delivery on/off switch.
 - **Activity log** — every staff change, who made it and when.
+- **Danger zone** — remove every order, behind the admin's own password. The
+  menu, accounts and settings are untouched, and the deletion is logged.
 
 ---
 
@@ -299,6 +301,7 @@ Everything is under `/api`. Staff endpoints take `Authorization: Bearer <jwt>`.
 | `POST` | `/delivery/simulate/:id/advance` | manager, admin (sim mode only) |
 | `POST` | `/webhooks/grab` | Grab (HMAC-signed) |
 | `GET` `POST` `PATCH` | `/admin/users` | admin |
+| `POST` | `/admin/orders/clear` | admin, password re-entered |
 | `GET` | `/admin/settings` | manager, admin |
 | `PUT` | `/admin/settings` | admin |
 | `GET` | `/admin/stats` | manager, admin |

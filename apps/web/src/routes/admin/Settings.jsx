@@ -3,6 +3,7 @@ import { api } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Field, Spinner } from '../../components/ui';
 import ImagePicker from '../../components/ImagePicker';
+import ClearOrders from '../../components/ClearOrders';
 import { useShop } from '../../context/ShopContext';
 
 export default function Settings() {
@@ -279,6 +280,8 @@ export default function Settings() {
             {busy ? <Spinner /> : 'Save settings'}
           </button>
         </div>
+
+        <ClearOrders />
       </form>
     </>
   );

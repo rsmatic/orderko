@@ -1236,6 +1236,34 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const limit = Math.min(500, Math.max(1, Number(query.get('limit') ?? 100)));
       return { entries: db.audit.slice(0, limit) };
     }],
+
+    /**
+     * Removes every order. The menu, accounts and settings are untouched.
+     *
+     * Being signed in as an admin is not enough: the password is asked for
+     * again, because this is irreversible and an admin session left open on a
+     * shop counter is the likely way it gets triggered by accident.
+     */
+    ['POST', /^\/admin\/orders\/clear$/, async (m, body, user) => {
+      requireRole(user, 'admin');
+
+      if (!user.password_hash) {
+        throw bad(
+          'This account signs in with Google and has no password. ' +
+            'Set one under your account first, so this can be confirmed.',
+        );
+      }
+      if (!body.password) throw bad('Enter your password to confirm');
+      if (!(await auth.verifyPassword(body.password, user.password_hash))) {
+        throw unauthorized('That password is not correct');
+      }
+
+      const { removed } = clearOrders(db);
+      // Logged after the wipe, which also clears the log — so this entry is
+      // the first thing in it, and the deletion leaves a trace.
+      audit(user, 'orders.clear', null, null, { removed });
+      return { removed };
+    }],
   ];
 
   /** Methods whose handlers may have mutated state and so need persisting. */

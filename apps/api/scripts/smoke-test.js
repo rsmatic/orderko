@@ -481,6 +481,52 @@ async function main() {
   const audit = await call('GET', '/admin/audit?limit=20', { token: adminToken });
   check('the audit log recorded our changes', audit.body?.entries?.length > 0);
 
+  section('Remove all orders');
+  const beforeClear = await call('GET', '/orders?limit=1', { token: adminToken });
+  check('there are orders to remove', Number(beforeClear.body?.total) > 0,
+    `total=${beforeClear.body?.total}`);
+
+  const managerClear = await call('POST', '/admin/orders/clear', {
+    token: managerToken, body: { password: PASSWORD },
+  });
+  check('a manager cannot remove orders', managerClear.status === 403, `got ${managerClear.status}`);
+
+  const anonClear = await call('POST', '/admin/orders/clear', { body: { password: PASSWORD } });
+  check('an anonymous request cannot', anonClear.status === 401, `got ${anonClear.status}`);
+
+  const noPassword = await call('POST', '/admin/orders/clear', { token: adminToken, body: {} });
+  check('an admin without a password cannot', noPassword.status === 400, `got ${noPassword.status}`);
+
+  const wrongPassword = await call('POST', '/admin/orders/clear', {
+    token: adminToken, body: { password: 'definitely-not-the-password' },
+  });
+  check('a wrong password is refused', wrongPassword.status === 401, `got ${wrongPassword.status}`);
+
+  const survived = await call('GET', '/orders?limit=1', { token: adminToken });
+  check('nothing was removed by the refusals',
+    survived.body?.total === beforeClear.body?.total,
+    `${beforeClear.body?.total} -> ${survived.body?.total}`);
+
+  const cleared = await call('POST', '/admin/orders/clear', {
+    token: adminToken, body: { password: PASSWORD },
+  });
+  check('the right password removes them', cleared.status === 200, cleared.body?.error);
+  check('it reports how many went', cleared.body?.removed === beforeClear.body?.total,
+    `removed=${cleared.body?.removed}`);
+
+  const after = await call('GET', '/orders?limit=1', { token: adminToken });
+  check('the order book is empty', after.body?.total === 0, `total=${after.body?.total}`);
+
+  const menuAfter = await call('GET', '/catalog/menu');
+  check('the menu survived', menuAfter.body?.products?.length > 0);
+  const usersAfterClear = await call('GET', '/admin/users', { token: adminToken });
+  check('the accounts survived', usersAfterClear.body?.users?.length > 0);
+
+  const trail = await call('GET', '/admin/audit', { token: adminToken });
+  check('the deletion left a trace', trail.body?.entries?.[0]?.action === 'orders.clear',
+    trail.body?.entries?.[0]?.action);
+
+
   // -------------------------------------------------------------- summary
   console.log(`\n${'─'.repeat(52)}`);
   if (failed === 0) {
