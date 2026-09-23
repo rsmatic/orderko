@@ -644,6 +644,52 @@ async function main() {
   const audit = await call('GET', '/admin/audit?limit=20', { token: adminToken });
   check('the audit log recorded our changes', audit.body?.entries?.length > 0);
 
+  // ------------------------------------------------ the shareable link
+  section('Order tracking link');
+
+  const share = await call('POST', `/orders/${orderId}/share`, { token: managerToken });
+  check('staff can get a link for an order', share.status === 200, share.body?.error);
+  const shareToken = share.body?.share_token;
+  check('it is 128 bits of hex', /^[0-9a-f]{32}$/.test(shareToken ?? ''), String(shareToken));
+
+  check('asking twice gives the same link',
+    (await call('POST', `/orders/${orderId}/share`, { token: adminToken })).body?.share_token === shareToken);
+
+  check('a customer cannot mint one for an order',
+    (await call('POST', `/orders/${orderId}/share`, { token: customerToken })).status === 403);
+  check('nor can a stranger',
+    [401, 403].includes((await call('POST', `/orders/${orderId}/share`)).status));
+
+  // The whole point: it opens with no session at all.
+  const shared = await call('GET', `/orders/shared/${shareToken}`);
+  check('the link opens without signing in', shared.status === 200, shared.body?.error);
+  check('and shows the right order', shared.body?.id === orderId,
+    `${shared.body?.id} vs ${orderId}`);
+  check('with its items', (shared.body?.items?.length ?? 0) > 0);
+  check('and its status', typeof shared.body?.status === 'string');
+
+  check('a made-up token opens nothing',
+    (await call('GET', '/orders/shared/' + 'f'.repeat(32))).status === 404);
+  check('a short token is not even a route',
+    (await call('GET', '/orders/shared/abc')).status === 404);
+
+  // Order numbers run in sequence, so a token that could be derived from one
+  // would let anybody walk the whole book.
+  const other = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Someone Else',
+      contact_phone: '+639170000004',
+    },
+  });
+  check('a second order exists', other.status === 201);
+  const otherShare = await call('POST', `/orders/${other.body.id}/share`, { token: adminToken });
+  check('two orders get different tokens', otherShare.body?.share_token !== shareToken);
+  check("one order's token does not open the other",
+    (await call('GET', `/orders/shared/${shareToken}`)).body?.id !== other.body.id);
+
   // ----------------------------------------------- live order updates
   section('Live order updates');
 

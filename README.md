@@ -125,6 +125,13 @@ Everything a manager can do, plus:
   picks straight back up, with no reconnect logic to get wrong. Nothing is
   polled while the tab is hidden, and a hidden tab is checked the moment it
   comes back.
+- **Copy link for customer** — on the kitchen card and in the order sheet.
+  It mints an unguessable 128-bit token and copies a `/track/<token>` link
+  the customer can open with no account and no sign-in. Order numbers run in
+  sequence, so the token is random rather than derived: anything derived from
+  an order number could be walked from OK-240001 through the whole book. The
+  token is fetched when the button is pressed, not shipped with every order
+  in the list.
 - **Activity log** — every staff change, who made it and when.
 - **Danger zone** — remove every order, behind the admin's own password. The
   menu, accounts and settings are untouched, and the deletion is logged.

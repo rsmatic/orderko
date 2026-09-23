@@ -383,6 +383,19 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     return { ...order, items, history, delivery: deliveryForOrder(order.id) };
   }
 
+  /**
+   * The secret in a link the shop pastes to a customer.
+   *
+   * 128 bits from the platform's CSPRNG. It has to be unguessable rather than
+   * merely unique: order numbers run in sequence, so anything derived from one
+   * could be walked from OK-240001 to everyone else's order.
+   */
+  const shareToken = () => {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  };
+
   const orderNumberFor = (id) => `OK-${String(240000 + id).padStart(6, '0')}`;
 
   /**
@@ -771,6 +784,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         delivery_lng: body.delivery_lng ?? null,
         ...totals,
         currency: db.settings.currency,
+        share_token: shareToken(),
         payment_method: paymentMethod,
         payment_status: 'unpaid',
         notes: body.notes ?? null,
@@ -863,6 +877,29 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       );
       if (!order) throw notFound('No order matches that number and phone');
       return loadOrder(order.id);
+    }],
+
+    /**
+     * The link the shop sends the customer. No sign-in: whoever holds the
+     * token is who it was given to, which is the same trust a parcel-tracking
+     * link asks for.
+     */
+    ['GET', /^\/orders\/shared\/([0-9a-f]{32})$/, async (m, body, user) => {
+      const order = db.orders.find((o) => o.share_token === m[1]);
+      if (!order) throw notFound('That link is not valid');
+      return loadOrder(order.id);
+    }],
+
+    /**
+     * Hands the shop the token for an order, minting one if it predates this
+     * feature. A POST because it can create something and has to be saved.
+     */
+    ['POST', /^\/orders\/(\d+)\/share$/, async (m, body, user) => {
+      requireRole(user, 'admin', 'manager');
+      const order = db.orders.find((o) => o.id === Number(m[1]));
+      if (!order) throw notFound('Order not found');
+      if (!order.share_token) order.share_token = shareToken();
+      return { id: order.id, order_number: order.order_number, share_token: order.share_token };
     }],
 
     ['GET', /^\/orders\/(\d+)$/, async (m, body, user) => {

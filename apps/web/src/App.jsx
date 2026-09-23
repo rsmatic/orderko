@@ -68,6 +68,9 @@ export default function App() {
               <Route path="checkout" element={<Checkout />} />
               <Route path="orders" element={<RequireAuth><OrderHistory /></RequireAuth>} />
               <Route path="orders/:id" element={<OrderTracking />} />
+              {/* The link the shop sends a customer: the token stands in for
+                  signing in, so this sits outside RequireAuth. */}
+              <Route path="track/:token" element={<OrderTracking />} />
               <Route path="*" element={<NotFound />} />
             </Route>
 

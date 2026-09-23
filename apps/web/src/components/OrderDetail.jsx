@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, money, dateTime, relativeMinutes } from '../lib/api';
 import { Modal, Alert, StatusBadge, DeliveryBadge, PaymentBadge, Spinner, Loading } from './ui';
+import CopyOrderLink from './CopyOrderLink';
 
 const NEXT_LABEL = {
   confirmed:  'Confirm order',
@@ -114,6 +115,7 @@ export default function OrderDetail({ orderId, onClose, onChanged }) {
       width="780px"
       footer={
         <>
+          <CopyOrderLink orderId={order.id} label="Copy link for customer" />
           <button type="button" className="btn" onClick={onClose}>Close</button>
           {nextStatuses
             .filter((s) => s !== 'cancelled')

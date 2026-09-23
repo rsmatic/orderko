@@ -4,6 +4,7 @@ import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Empty, DeliveryBadge, Spinner } from '../../components/ui';
 import OrderDetail from '../../components/OrderDetail';
 import { useLiveOrders } from '../../lib/useLiveOrders';
+import CopyOrderLink from '../../components/CopyOrderLink';
 import LiveDot from '../../components/LiveDot';
 
 const COLUMNS = [
@@ -157,6 +158,8 @@ export default function KitchenQueue() {
                                 {busyId === order.id ? <Spinner /> : '🚴 Book driver'}
                               </button>
                             ) : null}
+
+                            <CopyOrderLink orderId={order.id} />
 
                             {col.next ? (
                               <button

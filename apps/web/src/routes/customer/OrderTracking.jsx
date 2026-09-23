@@ -26,7 +26,7 @@ const STEPS = [
 const ORDER = ['pending', 'confirmed', 'preparing', 'ready', 'dispatched', 'delivered', 'completed'];
 
 export default function OrderTracking() {
-  const { id } = useParams();
+  const { id, token } = useParams();
   const location = useLocation();
   const { user } = useAuth();
   const justPlaced = location.state?.justPlaced;
@@ -41,6 +41,19 @@ export default function OrderTracking() {
    */
   const load = useCallback(
     async (signal) => {
+      // A link the shop pasted to the customer. The token is the whole of the
+      // permission, so there is nothing to fall back to and nothing to try
+      // first — a failure here means the link is wrong, not that we should go
+      // looking for a session.
+      if (token) {
+        try {
+          setOrder(await api.get(`/orders/shared/${token}`, { signal }));
+        } catch (err) {
+          if (err.name !== 'AbortError') setError(err.message);
+        }
+        return;
+      }
+
       try {
         setOrder(await api.get(`/orders/${id}`, { signal }));
         return;
@@ -63,7 +76,7 @@ export default function OrderTracking() {
         if (err.name !== 'AbortError') setError(err.message);
       }
     },
-    [id],
+    [id, token],
   );
 
   useEffect(() => {
