@@ -1122,7 +1122,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
     ['GET', /^\/admin\/settings$/, async (m, body, user) => {
       requireRole(user, 'admin', 'manager');
-      return { settings: { ...db.settings }, grab_mode: delivery.name ?? 'unknown' };
+      return { settings: { ...db.settings }, grab_mode: db.settings.grab_mode ?? 'sim' };
     }],
 
     ['PUT', /^\/admin\/settings$/, async (m, body, user) => {
@@ -1132,11 +1132,19 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         'google_client_id',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
-        'max_delivery_km',
+        'max_delivery_km', 'grab_mode',
       ];
       const patch = {};
       for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
       if (!Object.keys(patch).length) throw bad('Nothing to update');
+
+      if (patch.grab_mode !== undefined) {
+        if (!['sim', 'live'].includes(patch.grab_mode)) {
+          throw bad('Delivery mode must be "sim" or "live"');
+        }
+        const unavailable = await delivery.whyUnavailable?.(patch.grab_mode);
+        if (unavailable) throw bad(unavailable);
+      }
 
       for (const k of ['logo_url', 'hero_image_url']) {
         if (patch[k] === undefined) continue;

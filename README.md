@@ -125,7 +125,12 @@ The delivery layer is an adapter with two interchangeable providers behind one
 interface (`quote` / `book` / `track` / `cancel`). The core never knows which
 is in play.
 
-**`GRAB_MODE=sim`** (the default) simulates a driver: a booking walks through
+The mode is a shop setting — **Admin → Shop settings → Delivery** has a switch,
+so it changes without editing a file or restarting. `GRAB_MODE` only seeds a
+brand-new store. Credentials stay in the environment: a client secret does not
+belong in a settings object that is written to disk in the clear.
+
+**Simulated** (the default) walks a fake driver through the states: a booking walks through
 `allocating → picking_up → in_delivery → completed`, assigns a driver with a
 name and plate, and feeds each transition through the same handler the real
 webhook uses. Distance-based fees. Staff can push it along with the **Advance**
@@ -135,7 +140,9 @@ The simulation keeps no state of its own — `advance` is told the current statu
 and returns the next one — so progress lives in the store and a restart resumes
 rather than stalling.
 
-**`GRAB_MODE=live`** talks to the GrabExpress partner API. Set:
+**Live** talks to the GrabExpress partner API. Switching it on is refused
+unless these are present, because a shop that believes it is booking couriers
+and is not would find out far too late:
 
 ```ini
 GRAB_MODE=live

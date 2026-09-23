@@ -481,6 +481,44 @@ async function main() {
   const audit = await call('GET', '/admin/audit?limit=20', { token: adminToken });
   check('the audit log recorded our changes', audit.body?.entries?.length > 0);
 
+  section('Grab mode switch');
+  const modeNow = await call('GET', '/admin/settings', { token: adminToken });
+  check('the mode is reported', ['sim', 'live'].includes(modeNow.body?.grab_mode),
+    modeNow.body?.grab_mode);
+
+  const badMode = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { grab_mode: 'whatever' },
+  });
+  check('an unknown mode is refused', badMode.status === 400, `got ${badMode.status}`);
+
+  const managerMode = await call('PUT', '/admin/settings', {
+    token: managerToken, body: { grab_mode: 'sim' },
+  });
+  check('a manager cannot change the mode', managerMode.status === 403, `got ${managerMode.status}`);
+
+  // Without credentials this must be refused rather than saved: a shop that
+  // thinks it is booking couriers and is not would notice far too late.
+  const goLive = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { grab_mode: 'live' },
+  });
+  const credentialled = goLive.status === 200;
+  if (credentialled) {
+    check('live can be switched on when credentials exist', true);
+    await call('PUT', '/admin/settings', { token: adminToken, body: { grab_mode: 'sim' } });
+  } else {
+    check('live is refused without credentials', goLive.status === 400, `got ${goLive.status}`);
+    check('the refusal names what is missing',
+      /GRAB_CLIENT_ID/.test(goLive.body?.error ?? ''), goLive.body?.error);
+    const unchanged = await call('GET', '/admin/settings', { token: adminToken });
+    check('and the mode did not change', unchanged.body?.grab_mode === 'sim',
+      unchanged.body?.grab_mode);
+  }
+
+  const stillQuoting = await call('POST', '/delivery/quote', {
+    body: { address: 'BGC', lat: 14.5507, lng: 121.0494 },
+  });
+  check('simulated delivery still quotes', stillQuoting.status === 200, stillQuoting.body?.error);
+
   section('Remove all orders');
   const beforeClear = await call('GET', '/orders?limit=1', { token: adminToken });
   check('there are orders to remove', Number(beforeClear.body?.total) > 0,

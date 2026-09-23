@@ -9,7 +9,6 @@ import { useShop } from '../../context/ShopContext';
 export default function Settings() {
   const { reload: reloadShop } = useShop();
   const [form, setForm] = useState(null);
-  const [grabMode, setGrabMode] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,7 +19,6 @@ export default function Settings() {
       .get('/admin/settings', { signal: controller.signal })
       .then((res) => {
         const s = res.settings;
-        setGrabMode(res.grab_mode);
         setForm({
           shop_name: s.shop_name ?? '',
           logo_url: s.logo_url ?? '',
@@ -36,6 +34,7 @@ export default function Settings() {
           min_order_total: String(s.min_order_total ?? 0),
           delivery_enabled: Boolean(s.delivery_enabled),
           max_delivery_km: String(s.max_delivery_km ?? 0),
+          grab_mode: s.grab_mode ?? res.grab_mode ?? 'sim',
           order_lead_mins: String(s.order_lead_mins ?? 20),
         });
       })
@@ -71,6 +70,7 @@ export default function Settings() {
         min_order_total: Number(form.min_order_total),
         delivery_enabled: form.delivery_enabled,
         max_delivery_km: Number(form.max_delivery_km),
+        grab_mode: form.grab_mode,
         order_lead_mins: Number(form.order_lead_mins),
       });
       setNotice('Settings saved');
@@ -257,21 +257,36 @@ export default function Settings() {
               />
             </Field>
 
-            <div className={`alert ${grabMode === 'live' ? 'alert-ok' : 'alert-info'} small`}>
-              {grabMode === 'live' ? (
-                <>
-                  <strong>Live mode.</strong> Bookings go to the GrabExpress partner API using the
-                  credentials in the API's environment.
-                </>
-              ) : (
-                <>
-                  <strong>Mock mode.</strong> Bookings are simulated locally — a fake driver walks
-                  through allocating → picking up → in delivery → completed on a timer. Set
-                  <code> GRAB_MODE=live</code> with your client id and secret in
-                  <code> apps/api/.env</code> to use the real API.
-                </>
-              )}
-            </div>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={form.grab_mode === 'live'}
+                onChange={(e) => set({ grab_mode: e.target.checked ? 'live' : 'sim' })}
+              />
+              Book real Grab drivers
+            </label>
+            <span className="hint" style={{ marginTop: '-.35rem' }}>
+              Off, a simulated driver walks through allocating → picking up → in
+              delivery → completed, so the whole flow can be tried without booking
+              anyone. On, bookings go to the GrabExpress partner API and cost real
+              money.
+            </span>
+
+            {form.grab_mode === 'live' ? (
+              <div className="alert alert-warn small">
+                <strong>Live.</strong> Every booking is a real courier and a real
+                charge. Credentials come from the API’s environment
+                (<code>GRAB_CLIENT_ID</code> and <code>GRAB_CLIENT_SECRET</code>) — a
+                client secret is not kept here, where it would be written to disk in
+                the clear.
+              </div>
+            ) : (
+              <div className="alert alert-info small">
+                <strong>Simulated.</strong> No courier is booked and nothing is charged.
+                Staff can also push a delivery along with the <strong>Advance</strong>
+                {' '}button on an order.
+              </div>
+            )}
           </div>
         </section>
 

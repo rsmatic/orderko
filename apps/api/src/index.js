@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { createBackend, AppError } from '@overnight-oats/core';
 import { config } from './config.js';
 import { createJsonStore } from './persistence.js';
-import { auth, createDelivery } from './adapters.js';
+import { auth, createDeliveryRouter } from './adapters.js';
 import { googleAuth } from './google-auth.js';
 import { mapStatus } from './grab-live.js';
 
@@ -16,7 +16,12 @@ const store = createJsonStore({
 });
 
 const { state, seeded } = await store.load();
-const delivery = createDelivery();
+
+// GRAB_MODE seeds a brand-new store; after that the setting is what counts,
+// so the admin screen can change it without a restart.
+if (state.settings.grab_mode === undefined) state.settings.grab_mode = config.grab.mode;
+const deliveryMode = () => state.settings.grab_mode ?? 'sim';
+const delivery = createDeliveryRouter(deliveryMode);
 
 const backend = createBackend({
   state,
@@ -100,7 +105,7 @@ app.get('/api/health', (req, res) => {
     // endpoint has no reason to publish. Only useful locally anyway.
     ...(config.env === 'production' ? {} : { data_file: config.dataFile }),
     orders: db.orders.length,
-    grab_mode: config.grab.mode,
+    grab_mode: deliveryMode(),
     env: config.env,
   });
 });
@@ -168,10 +173,12 @@ app.use((err, req, res, next) => {
  * in the store, so a restart resumes rather than stalling.
  */
 function startSimTicker() {
-  if (config.grab.mode === 'live' || config.grab.autoAdvanceSeconds <= 0) return null;
+  if (config.grab.autoAdvanceSeconds <= 0) return null;
 
   const tick = async () => {
     try {
+      // Real drivers move on their own; only the simulation needs nudging.
+      if (deliveryMode() === 'live') return;
       const db = backend.getState();
       const active = db.deliveries.filter(
         (d) => !['completed', 'cancelled', 'failed', 'returned'].includes(d.status),
@@ -202,7 +209,7 @@ const ticker = startSimTicker();
 const server = app.listen(config.port, () => {
   console.log(`API listening on http://localhost:${config.port}`);
   console.log(`  store:  ${config.dataFile}${seeded ? '  (seeded)' : ''}`);
-  console.log(`  grab:   ${config.grab.mode}`);
+  console.log(`  grab:   ${deliveryMode()}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
