@@ -53,6 +53,19 @@ function findCloudflared() {
 const CLOUDFLARED = findCloudflared();
 
 const children = [];
+
+/**
+ * Quits, and takes the children with it.
+ *
+ * Leaving them behind is worse than the failure that caused it: an orphaned
+ * API keeps port 4000, so the next attempt fails with "something is already on
+ * port 4000" and the one after that, with no window left on screen to Ctrl+C.
+ */
+function bail(message) {
+  console.error('\n' + message);
+  for (const child of children) child.kill();
+  setTimeout(() => process.exit(1), 1000);
+}
 const log = (tag, line) => console.log(`[${tag}] ${line}`);
 
 function start(tag, command, args, opts = {}) {
@@ -94,7 +107,7 @@ api.stdout.on('data', (d) => String(d).trimEnd().split('\n').forEach((l) => log(
 api.stderr.on('data', (d) => String(d).trimEnd().split('\n').forEach((l) => log('api', l)));
 
 const ready = await (async () => {
-  for (let i = 0; i < 30; i += 1) {
+  for (let i = 0; i < 60; i += 1) {
     try {
       const res = await fetch('http://localhost:4000/api/health');
       if (res.ok) return true;
@@ -105,8 +118,7 @@ const ready = await (async () => {
 })();
 
 if (!ready) {
-  console.error('\nThe API did not start. Is something already on port 4000?');
-  process.exit(1);
+  bail('The API did not start in time. Is something already on port 4000?');
 }
 
 // ------------------------------------------------------------- the tunnel
@@ -128,8 +140,7 @@ const url = await new Promise((resolve, reject) => {
   tunnel.stdout.on('data', scan);
   tunnel.stderr.on('data', scan);
 }).catch((err) => {
-  console.error(`\n${err.message}. Is ${CLOUDFLARED} installed?`);
-  process.exit(1);
+  bail(`${err.message}. Is ${CLOUDFLARED} installed?`);
 });
 
 // Tracking links the simulated driver hands out point at this hostname.
