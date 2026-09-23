@@ -3,6 +3,8 @@ import { api, money, relativeMinutes } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Empty, DeliveryBadge, Spinner } from '../../components/ui';
 import OrderDetail from '../../components/OrderDetail';
+import { useLiveOrders } from '../../lib/useLiveOrders';
+import LiveDot from '../../components/LiveDot';
 
 const COLUMNS = [
   { status: 'pending',    title: 'New',        next: 'confirmed',  action: 'Confirm' },
@@ -33,11 +35,9 @@ export default function KitchenQueue() {
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    if (!auto) return undefined;
-    const t = setInterval(load, 15_000);
-    return () => clearInterval(t);
-  }, [auto, load]);
+  // Was a full queue fetch every 15 seconds whether or not anything had
+  // happened. Now it asks a much smaller question, much more often.
+  const { live, checkedAt } = useLiveOrders(load, { enabled: auto });
 
   async function advance(order, next) {
     setBusyId(order.id);
@@ -69,6 +69,7 @@ export default function KitchenQueue() {
         title="Kitchen queue"
         subtitle={orders ? `${orders.length} order${orders.length === 1 ? '' : 's'} in flight` : 'Loading…'}
       >
+        <LiveDot live={auto && live} checkedAt={checkedAt} />
         <label className="switch">
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
           Auto-refresh

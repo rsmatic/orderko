@@ -385,6 +385,20 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
   const orderNumberFor = (id) => `OK-${String(240000 + id).padStart(6, '0')}`;
 
+  /**
+   * Bumped by every write, so a screen can ask "has anything changed?" without
+   * pulling the whole order list to find out that nothing has.
+   *
+   * It counts writes rather than order changes, so a menu edit moves it too.
+   * That costs the odd needless refetch and is worth it: the alternative is
+   * bookkeeping at every mutation site, where the one that gets forgotten is
+   * the one that leaves a new order off the screen.
+   *
+   * It lives in memory, so a restart sends it back to zero. Clients compare
+   * for difference, not for growth.
+   */
+  let rev = 0;
+
   // Anything else is a typo or a tampered request; the checkout only ever
   // sends one of these.
   const PAYMENT_METHODS = ['cash', 'card', 'ewallet', 'gcash'];
@@ -800,6 +814,19 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       });
       audit(user, 'order.create', 'order', id, { order_number: orderNumberFor(id) });
       return loadOrder(id);
+    }],
+
+    /**
+     * Small enough to poll: the staff screens hit this every few seconds and
+     * only fetch the real list when the number has moved.
+     */
+    ['GET', /^\/orders\/pulse$/, async (m, body, user) => {
+      requireRole(user, 'admin', 'manager');
+      return {
+        rev,
+        orders: db.orders.length,
+        open: db.orders.filter((o) => !['completed', 'cancelled'].includes(o.status)).length,
+      };
     }],
 
     ['GET', /^\/orders\/queue$/, async (m, body, user) => {
@@ -1418,6 +1445,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         const result = await handler(match, body ?? {}, user, query);
         // A GET can still write — a polled delivery refresh records an event.
         if (WRITES.has(method) || rawPath.startsWith('/delivery/orders/')) {
+          rev += 1;
           await persist?.(db);
         }
         return { status: statusFor(method, rawPath, result), body: result };

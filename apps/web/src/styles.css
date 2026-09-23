@@ -721,3 +721,34 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: block;
 }
 .gcash-qr figcaption { text-align: center; }
+
+/* --------------------------------------------------------------- live dot */
+
+.live-dot {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .78rem; font-weight: 600; letter-spacing: .02em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.live-dot-mark {
+  width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--leaf, #3f8f5f);
+  box-shadow: 0 0 0 3px rgba(63, 143, 95, .18);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+.live-dot-off { color: var(--berry, #a8344f); }
+.live-dot-off .live-dot-mark {
+  background: var(--berry, #a8344f);
+  box-shadow: 0 0 0 3px rgba(168, 52, 79, .18);
+  animation: none;
+}
+
+@keyframes live-pulse {
+  50% { opacity: .35; }
+}
+
+/* A dot that throbs forever is a distraction on a screen left open all day,
+   and for anyone who finds movement painful it is worse than that. */
+@media (prefers-reduced-motion: reduce) {
+  .live-dot-mark { animation: none; }
+}

@@ -117,6 +117,14 @@ Everything a manager can do, plus:
   choices are labelled "Included"), name, currency, tax rate, minimum order,
   prep time, delivery radius, the pickup address Grab collects from, a
   delivery on/off switch, and the GCash number customers pay to.
+- **Orders** and **Kitchen queue** keep themselves current. They poll
+  `GET /orders/pulse` — a revision number every write bumps, plus two counts —
+  every few seconds, and fetch the real list only when that number moves. It
+  is polling rather than a socket because the API is reached through a quick
+  tunnel that is restarted by hand and changes address when it is; a poll
+  picks straight back up, with no reconnect logic to get wrong. Nothing is
+  polled while the tab is hidden, and a hidden tab is checked the moment it
+  comes back.
 - **Activity log** — every staff change, who made it and when.
 - **Danger zone** — remove every order, behind the admin's own password. The
   menu, accounts and settings are untouched, and the deletion is logged.

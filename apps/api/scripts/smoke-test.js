@@ -644,6 +644,58 @@ async function main() {
   const audit = await call('GET', '/admin/audit?limit=20', { token: adminToken });
   check('the audit log recorded our changes', audit.body?.entries?.length > 0);
 
+  // ----------------------------------------------- live order updates
+  section('Live order updates');
+
+  const pulse = await call('GET', '/orders/pulse', { token: adminToken });
+  check('an admin can read the pulse', pulse.status === 200, pulse.body?.error);
+  check('it carries a revision', Number.isInteger(pulse.body?.rev), JSON.stringify(pulse.body));
+  check('and an order count', Number.isInteger(pulse.body?.orders));
+  check('and an open count', Number.isInteger(pulse.body?.open));
+  check('the open count cannot exceed the total',
+    pulse.body.open <= pulse.body.orders, JSON.stringify(pulse.body));
+
+  check('a manager can read it too',
+    (await call('GET', '/orders/pulse', { token: managerToken })).status === 200);
+  check('a customer cannot',
+    (await call('GET', '/orders/pulse', { token: customerToken })).status === 403);
+  check('an anonymous request cannot',
+    [401, 403].includes((await call('GET', '/orders/pulse')).status));
+
+  // Reading must not itself count as a change, or every screen would reload on
+  // every poll for ever.
+  const pulseAgain = await call('GET', '/orders/pulse', { token: adminToken });
+  check('polling does not move the revision', pulseAgain.body?.rev === pulse.body.rev,
+    `${pulse.body.rev} -> ${pulseAgain.body?.rev}`);
+
+  const placed = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Pulse Tester',
+      contact_phone: '+639170000003',
+    },
+  });
+  check('an order was placed', placed.status === 201,
+    JSON.stringify(placed.body?.error ?? placed.body?.details));
+
+  const afterOrder = await call('GET', '/orders/pulse', { token: adminToken });
+  check('a new order moves the revision', afterOrder.body?.rev !== pulse.body.rev,
+    `still ${afterOrder.body?.rev}`);
+  check('and raises the order count', afterOrder.body?.orders === pulse.body.orders + 1,
+    `${pulse.body.orders} -> ${afterOrder.body?.orders}`);
+
+  // A status change is a change too — the board shows status, so a screen that
+  // only watched the count would sit on a stale one.
+  await call('PATCH', `/orders/${placed.body.id}/status`, {
+    token: managerToken, body: { status: 'confirmed' },
+  });
+  const afterStatus = await call('GET', '/orders/pulse', { token: adminToken });
+  check('a status change moves it as well', afterStatus.body?.rev !== afterOrder.body.rev,
+    `still ${afterStatus.body?.rev}`);
+  check('without inventing an order', afterStatus.body?.orders === afterOrder.body.orders);
+
   // ------------------------------------------------ deleting an account
   section('Deleting an account');
 

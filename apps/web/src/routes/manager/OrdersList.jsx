@@ -3,6 +3,8 @@ import { api, money, dateTime } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Empty, StatusBadge, PaymentBadge, DeliveryBadge } from '../../components/ui';
 import OrderDetail from '../../components/OrderDetail';
+import { useLiveOrders } from '../../lib/useLiveOrders';
+import LiveDot from '../../components/LiveDot';
 
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
@@ -50,12 +52,17 @@ export default function OrdersList() {
 
   useEffect(() => { setOffset(0); }, [status, fulfillment, search]);
 
+  // New orders arrive on their own; nobody should have to press Refresh to
+  // find out the shop has work waiting.
+  const { live, checkedAt } = useLiveOrders(() => load());
+
   const orders = data?.orders ?? [];
   const total = data?.total ?? 0;
 
   return (
     <>
       <DashHeader title="Orders" subtitle={data ? `${total} order${total === 1 ? '' : 's'}` : 'Loading…'}>
+        <LiveDot live={live} checkedAt={checkedAt} />
         <input
           className="input"
           style={{ width: 230 }}
