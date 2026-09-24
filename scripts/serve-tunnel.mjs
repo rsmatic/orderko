@@ -69,7 +69,13 @@ function bail(message) {
 const log = (tag, line) => console.log(`[${tag}] ${line}`);
 
 function start(tag, command, args, opts = {}) {
-  const child = spawn(command, args, { cwd: root, shell: process.platform === 'win32', ...opts });
+  // A shell is what lets Windows run a .cmd or a bare name off PATH, but it
+  // also re-parses the command line — and cmd.exe splits
+  // "C:\Program Files (x86)\cloudflared\cloudflared.exe" at the first space,
+  // reporting that 'C:\Program' is not a recognised command. An absolute path
+  // to a real file needs no shell, so it does not get one.
+  const shell = process.platform === 'win32' && !path.isAbsolute(command);
+  const child = spawn(command, args, { cwd: root, shell, ...opts });
   children.push(child);
   child.on('exit', (code) => {
     if (code !== 0 && code !== null) log(tag, `exited with code ${code}`);
@@ -130,6 +136,14 @@ const tunnel = start('tunnel', CLOUDFLARED, [
 
 const url = await new Promise((resolve, reject) => {
   const timer = setTimeout(() => reject(new Error('no tunnel URL after 60s')), 60_000);
+  // Without this, a tunnel that dies on startup leaves the script waiting out
+  // the full minute before saying anything, and the reason it died has already
+  // scrolled past.
+  tunnel.on('exit', (code) => {
+    if (code === null || code === 0) return;
+    clearTimeout(timer);
+    reject(new Error(`cloudflared exited with code ${code} before giving a URL`));
+  });
   const scan = (chunk) => {
     const match = String(chunk).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
     if (match) {
