@@ -264,8 +264,11 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         pickup_address: s.pickup_address,
         min_order_total: Number(s.min_order_total),
         delivery_enabled: Boolean(s.delivery_enabled),
-        grab_delivery_enabled: Boolean(s.grab_delivery_enabled),
-        own_delivery_enabled: Boolean(s.own_delivery_enabled),
+        // A shop created before these existed was delivering with Grab, so an
+        // absent key means the old behaviour rather than off. Upgrading must
+        // not quietly stop a working shop taking delivery orders.
+        grab_delivery_enabled: s.grab_delivery_enabled ?? true,
+        own_delivery_enabled: s.own_delivery_enabled ?? false,
         own_delivery_fee: Number(s.own_delivery_fee ?? 0),
         own_delivery_fee_per_km: Number(s.own_delivery_fee_per_km ?? 0),
         max_delivery_km: Number(s.max_delivery_km ?? 0),
@@ -328,8 +331,8 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
   function enabledCarriers() {
     if (!db.settings.delivery_enabled) return [];
     return [
-      db.settings.grab_delivery_enabled ? 'grab' : null,
-      db.settings.own_delivery_enabled ? 'own' : null,
+      (db.settings.grab_delivery_enabled ?? true) ? 'grab' : null,
+      (db.settings.own_delivery_enabled ?? false) ? 'own' : null,
     ].filter(Boolean);
   }
 
