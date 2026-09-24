@@ -22,6 +22,8 @@ services:
       NODE_ENV: production
       PORT: 4000
       DATA_FILE: data/store.json
+      # Without this a real shop boots with a fabricated order history.
+      SEED_SAMPLE_ORDERS: ${SEED_SAMPLE_ORDERS:-true}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       SEED_PASSWORD: ${SEED_PASSWORD:?set SEED_PASSWORD in .env}
       # Caddy puts the app and the API on one origin, so this is only a
