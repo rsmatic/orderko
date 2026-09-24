@@ -1,47 +1,54 @@
 #!/usr/bin/env bash
 #
-# Brings a fresh Ubuntu box up as the whole shop: the API, the web app, and
-# Caddy in front getting its own HTTPS certificate.
+# Brings a fresh EC2 box up as the whole shop: the API, the web app, and Caddy
+# in front. Works on Amazon Linux and on Ubuntu.
 #
-#   curl -fsSL https://raw.githubusercontent.com/rsmatic/orderko/main/scripts/bootstrap-ec2.sh | bash -s -- shop.example.com
+#   curl -fsSL https://raw.githubusercontent.com/rsmatic/orderko/main/scripts/bootstrap-ec2.sh | bash
+#   curl -fsSL …/bootstrap-ec2.sh | bash -s -- shop.example.com
+#
+# With no argument it serves plain HTTP, which is all a bare IP can do — a
+# certificate needs a name. Add one later with scripts/enable-https.sh.
 #
 # Safe to run twice: it installs what is missing and leaves an existing store
-# alone. It never overwrites a .env that is already there, because that file
-# holds the secrets the running store was seeded with.
+# alone. It never overwrites a .env, because that holds the secrets the store
+# was seeded with.
 set -euo pipefail
 
 DOMAIN="${1:-}"
 REPO="${REPO:-https://github.com/rsmatic/orderko.git}"
 DIR="${DIR:-$HOME/orderko}"
 
-if [ -z "$DOMAIN" ]; then
-  echo "usage: bootstrap-ec2.sh <domain>" >&2
-  echo "  the domain must already point at this machine's IP" >&2
-  exit 1
-fi
-
 say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
-say "Checking the domain points here"
-# Caddy asks Let's Encrypt for a certificate, and Let's Encrypt checks by
-# connecting back to this address. Getting this wrong is the usual reason a
-# deploy comes up on plain HTTP and never upgrades, so it is worth saying early.
-MINE="$(curl -fsS --max-time 10 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)"
-THEIRS="$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1 || true)"
-if [ -z "$THEIRS" ]; then
-  echo "  WARNING: $DOMAIN does not resolve yet."
-  echo "  Caddy will keep retrying, so this is fine if DNS is still spreading."
-elif [ -n "$MINE" ] && [ "$MINE" != "$THEIRS" ]; then
-  echo "  WARNING: $DOMAIN resolves to $THEIRS but this machine is $MINE."
-  echo "  The certificate cannot be issued until that matches."
+case "$(uname -m)" in
+  x86_64)  PLUGIN_ARCH=amd64 ;;
+  aarch64) PLUGIN_ARCH=arm64 ;;
+  *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+esac
+
+say "Swap"
+# The web image is built with Vite, which wants more memory than the smallest
+# instances have. Below a gigabyte the build is killed part way through with
+# nothing useful in the log, so buy the headroom rather than debug that.
+RAM_MB=$(free -m | awk '/Mem:/{print $2}')
+if [ "$RAM_MB" -lt 950 ] && ! swapon --show | grep -q /swapfile; then
+  sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile >/dev/null
+  sudo swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+  echo "  ${RAM_MB} MB of RAM — added 2 GB of swap so the build survives"
 else
-  echo "  $DOMAIN -> $THEIRS (this machine)"
+  echo "  ${RAM_MB} MB of RAM — no swap needed"
 fi
 
-say "Installing Docker"
-if ! command -v docker >/dev/null 2>&1; then
+say "Docker and git"
+if command -v dnf >/dev/null 2>&1; then
+  sudo dnf install -y -q docker git >/dev/null
+  sudo systemctl enable --now docker >/dev/null 2>&1
+elif command -v apt-get >/dev/null 2>&1; then
   sudo apt-get update -qq
-  sudo apt-get install -y -qq ca-certificates curl git openssl
+  sudo apt-get install -y -qq ca-certificates curl git
   sudo install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
     | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -50,33 +57,61 @@ if ! command -v docker >/dev/null 2>&1; then
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
     | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
   sudo apt-get update -qq
-  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  sudo usermod -aG docker "$USER"
-  echo "  installed"
+  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io
 else
-  echo "  already installed"
+  echo "no dnf or apt-get — unsupported distribution" >&2
+  exit 1
 fi
+sudo usermod -aG docker "$USER"
+echo "  $(sudo docker --version)"
 
-say "Fetching the code"
-if [ -d "$DIR/.git" ]; then
-  git -C "$DIR" pull --ff-only
-else
-  git clone --depth 1 "$REPO" "$DIR"
+say "Compose and buildx plugins"
+# Amazon Linux ships Docker without either plugin, and with a buildx too old
+# for current compose ("compose build requires buildx 0.17.0 or later").
+PLUGINS=/usr/libexec/docker/cli-plugins
+sudo mkdir -p "$PLUGINS"
+
+if ! sudo docker compose version >/dev/null 2>&1; then
+  sudo curl -fsSL \
+    "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-${PLUGIN_ARCH/amd64/x86_64}" \
+    -o "$PLUGINS/docker-compose"
+  sudo chmod +x "$PLUGINS/docker-compose"
 fi
+echo "  $(sudo docker compose version)"
+
+BUILDX_OK=$(sudo docker buildx version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+' | head -1 || echo v0.0)
+if [ "$(printf '%s\nv0.17\n' "$BUILDX_OK" | sort -V | head -1)" != "v0.17" ]; then
+  # buildx names its assets with the version in them, so the /latest/download
+  # shortcut 404s and quietly writes an HTML error page over the binary.
+  URL=$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
+    | grep -o "https://github.com/docker/buildx/releases/download/[^\"]*linux-${PLUGIN_ARCH}" | head -1)
+  [ -n "$URL" ] || { echo "could not resolve a buildx download" >&2; exit 1; }
+  sudo curl -fsSL "$URL" -o "$PLUGINS/docker-buildx"
+  sudo chmod +x "$PLUGINS/docker-buildx"
+fi
+echo "  $(sudo docker buildx version)"
+
+say "Code"
+if [ -d "$DIR/.git" ]; then git -C "$DIR" pull --ff-only; else git clone --depth 1 "$REPO" "$DIR"; fi
 cd "$DIR"
 
-say "Writing .env"
+say "Configuration"
 if [ -f .env ]; then
   echo "  .env already exists — left untouched."
-  echo "  It holds the secrets this store was seeded with; changing"
-  echo "  SEED_PASSWORD now would not change anybody's existing password."
+  echo "  It holds the secrets this store was seeded with."
 else
   secret() { openssl rand -base64 24 | tr -d '\n' | tr '+/' '-_'; }
+  PUBLIC_IP=$(curl -fsS --max-time 10 https://checkip.amazonaws.com | tr -d '[:space:]')
+  if [ -n "$DOMAIN" ]; then
+    SITE="$DOMAIN"; BASE="https://$DOMAIN"
+  else
+    SITE=":80"; BASE="http://${PUBLIC_IP:-localhost}"
+  fi
   cat > .env <<EOF
 JWT_SECRET=$(secret)
 SEED_PASSWORD=$(secret)
-SITE_ADDRESS=$DOMAIN
-PUBLIC_BASE_URL=https://$DOMAIN
+SITE_ADDRESS=$SITE
+PUBLIC_BASE_URL=$BASE
 HTTP_PORT=80
 HTTPS_PORT=443
 # A real shop starts with an empty order book.
@@ -84,13 +119,13 @@ SEED_SAMPLE_ORDERS=false
 GRAB_MODE=sim
 EOF
   chmod 600 .env
-  echo "  written. The seeded admin password is:"
+  echo "  written — serving on $BASE"
   echo
+  echo "  Seeded admin password (admin@orderko.test):"
   echo "      $(grep '^SEED_PASSWORD=' .env | cut -d= -f2-)"
   echo
-  echo "  Sign in as admin@orderko.test, change it, then delete the seeded"
-  echo "  accounts you do not want. This password is only ever used to create"
-  echo "  them on first boot."
+  echo "  Change it after signing in, then delete the seeded accounts you do"
+  echo "  not want. It is only used to create them on first boot."
 fi
 
 say "Building and starting"
@@ -98,17 +133,12 @@ sudo docker compose up -d --build
 
 say "Nightly backup of the store"
 # The whole shop is one JSON file, which makes backing it up trivial and makes
-# not doing it unforgivable.
-#
-# The volume name is read from compose rather than assumed: it is prefixed with
-# the project name, which is the directory name, so hardcoding it would break
-# the moment this is cloned somewhere else.
-VOLUME="$(sudo docker compose config --volumes | grep -x 'api-data' >/dev/null && \
-  sudo docker compose ps -q api | xargs -r sudo docker inspect \
-    -f '{{ range .Mounts }}{{ if eq .Destination "/app/apps/api/data" }}{{ .Name }}{{ end }}{{ end }}' || true)"
-
+# not doing it unforgivable. The volume name is read from the running container
+# rather than assumed: compose prefixes it with the directory name.
+VOLUME=$(sudo docker compose ps -q api | xargs -r sudo docker inspect \
+  -f '{{ range .Mounts }}{{ if eq .Destination "/app/apps/api/data" }}{{ .Name }}{{ end }}{{ end }}' || true)
 if [ -z "$VOLUME" ]; then
-  echo "  could not identify the data volume — skipping the backup job"
+  echo "  could not identify the data volume — skipping"
 else
   sudo install -d -m 700 /var/backups/orderko
   sudo tee /etc/cron.daily/orderko-backup >/dev/null <<CRON
@@ -121,17 +151,23 @@ gzip -c "\$MOUNT/store.json" > "/var/backups/orderko/store-\$(date +%Y-%m-%d).js
 find /var/backups/orderko -name 'store-*.json.gz' -mtime +14 -delete
 CRON
   sudo chmod +x /etc/cron.daily/orderko-backup
-  echo "  volume $VOLUME -> /var/backups/orderko (14 days)"
+  echo "  $VOLUME -> /var/backups/orderko (14 days)"
 fi
 
 say "Done"
-echo "  Shop:   https://$DOMAIN"
-echo "  Health: https://$DOMAIN/api/health"
+BASE_SHOWN=$(grep '^PUBLIC_BASE_URL=' .env | cut -d= -f2-)
+echo "  Shop:   $BASE_SHOWN"
+echo "  Health: $BASE_SHOWN/api/health"
 echo
-echo "  The certificate takes a few seconds on first boot. If it never"
-echo "  arrives, check DNS and that ports 80 and 443 are open in the security"
-echo "  group — Let's Encrypt needs port 80 to verify the domain."
+echo "  Open ports 80 and 443 in the security group if you have not."
+[ -z "$DOMAIN" ] && cat <<'NOTE'
+
+  This is plain HTTP, which a bare IP is limited to. Google Sign-In,
+  tap-to-copy and "use my location" all need a secure origin, so they will
+  not work until there is a hostname. Get a free one at duckdns.org, then:
+
+      ./scripts/enable-https.sh yourname.duckdns.org
+NOTE
 echo
 echo "  Logs:    cd $DIR && sudo docker compose logs -f"
-echo "  Restart: cd $DIR && sudo docker compose restart"
 echo "  Update:  cd $DIR && git pull && sudo docker compose up -d --build"
