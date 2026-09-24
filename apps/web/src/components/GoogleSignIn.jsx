@@ -21,6 +21,16 @@ export default function GoogleSignIn({ onSignedIn, text = 'continue_with' }) {
   const [error, setError] = useState('');
   const clientId = shop.google_client_id;
 
+  // Every caller passes an inline arrow, so onSignedIn is a different function
+  // on every render. Listed as a dependency it re-ran this effect on each
+  // keystroke of the form beside it, clearing the holder and asking Google to
+  // draw the button again — which is the flicker you see while typing. Held in
+  // a ref instead, the effect runs once and still calls the current callback.
+  const onSignedInRef = useRef(onSignedIn);
+  onSignedInRef.current = onSignedIn;
+  const adoptRef = useRef(adoptSession);
+  adoptRef.current = adoptSession;
+
   useEffect(() => {
     if (!clientId || !holder.current) return undefined;
     let cancelled = false;
@@ -35,8 +45,8 @@ export default function GoogleSignIn({ onSignedIn, text = 'continue_with' }) {
           setError('');
           try {
             const res = await api.post('/auth/google', { credential });
-            adoptSession(res.token, res.user);
-            onSignedIn?.(res.user);
+            adoptRef.current(res.token, res.user);
+            onSignedInRef.current?.(res.user);
           } catch (err) {
             setError(err.message);
           }
@@ -54,7 +64,7 @@ export default function GoogleSignIn({ onSignedIn, text = 'continue_with' }) {
     })().catch(() => setError('Could not load Google sign-in.'));
 
     return () => { cancelled = true; };
-  }, [clientId, text, adoptSession, onSignedIn]);
+  }, [clientId, text]);
 
   if (!clientId) return null;
 
