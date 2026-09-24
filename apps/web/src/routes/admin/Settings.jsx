@@ -347,6 +347,14 @@ export default function Settings() {
             </span>
 
             {form.delivery_provider === 'own' ? (
+              <>
+              {Number(form.own_delivery_fee) === 0 && Number(form.own_delivery_fee_per_km) === 0 ? (
+                <div className="alert alert-warn small">
+                  Both fees are zero, so <strong>delivery is free</strong>. That is a
+                  fine choice, but an easy one to make by accident — a shop upgrading
+                  from an older version starts at zero rather than at a default price.
+                </div>
+              ) : null}
               <div className="grid grid-2">
                 <Field
                   label="Delivery fee"
@@ -369,6 +377,7 @@ export default function Settings() {
                   />
                 </Field>
               </div>
+              </>
             ) : null}
 
             <Field
