@@ -17,6 +17,7 @@ export default function Checkout() {
 
   const [form, setForm] = useState({
     fulfillment_type: 'pickup',
+    delivery_carrier: null,
     contact_name: '',
     contact_phone: '',
     contact_email: '',
@@ -48,6 +49,32 @@ export default function Checkout() {
   const wantsDelivery = form.fulfillment_type === 'delivery';
   const hasGcash = Boolean(String(shop?.gcash_number ?? '').trim());
 
+  // One button per way to get the order. The shop can run both carriers, one,
+  // or neither — a shop with neither is pickup only and shows a single button.
+  const ways = [
+    { key: 'pickup', type: 'pickup', carrier: null, label: '🏪 Pick up' },
+    shop?.delivery_enabled && shop?.grab_delivery_enabled
+      ? { key: 'grab', type: 'delivery', carrier: 'grab', label: '🚴 Grab delivery' }
+      : null,
+    shop?.delivery_enabled && shop?.own_delivery_enabled
+      ? { key: 'own', type: 'delivery', carrier: 'own', label: '🛵 Delivery (COD)' }
+      : null,
+  ].filter(Boolean);
+
+  const chosenWay = form.fulfillment_type === 'pickup'
+    ? 'pickup'
+    : form.delivery_carrier ?? 'grab';
+
+  // A carrier switched off while a basket was open would otherwise leave the
+  // order pointing at something the server will refuse.
+  useEffect(() => {
+    if (!ways.some((w) => w.key === chosenWay)) {
+      const first = ways[0];
+      set({ fulfillment_type: first.type, delivery_carrier: first.carrier });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ways.map((w) => w.key).join(','), chosenWay]);
+
   // The admin can clear the number while a basket is open, and the server
   // refuses a GCash order once it is gone — so drop back to cash rather than
   // letting the order be rejected at the last step.
@@ -61,10 +88,11 @@ export default function Checkout() {
     () => JSON.stringify({
       items: cart.payload,
       mode: form.fulfillment_type,
+      carrier: form.delivery_carrier,
       lat: form.delivery_lat,
       lng: form.delivery_lng,
     }),
-    [cart.payload, form.fulfillment_type, form.delivery_lat, form.delivery_lng],
+    [cart.payload, form.fulfillment_type, form.delivery_carrier, form.delivery_lat, form.delivery_lng],
   );
 
   useEffect(() => {
@@ -79,6 +107,7 @@ export default function Checkout() {
         {
           items: cart.payload,
           fulfillment_type: form.fulfillment_type,
+          delivery_carrier: form.delivery_carrier,
           delivery_address: form.delivery_address || null,
           delivery_lat: form.delivery_lat,
           delivery_lng: form.delivery_lng,
@@ -108,6 +137,7 @@ export default function Checkout() {
       const order = await api.post('/orders', {
         items: cart.payload,
         fulfillment_type: form.fulfillment_type,
+        delivery_carrier: wantsDelivery ? form.delivery_carrier : null,
         contact_name: form.contact_name.trim(),
         contact_phone: form.contact_phone.trim(),
         contact_email: form.contact_email.trim() || null,
@@ -165,16 +195,14 @@ export default function Checkout() {
             <div className="panel-head"><h3>How do you want it?</h3></div>
             <div className="panel-body stack">
               <div className="row-wrap">
-                {['pickup', 'delivery'].map((mode) => (
+                {ways.map((way) => (
                   <button
-                    key={mode}
+                    key={way.key}
                     type="button"
-                    className={`btn ${form.fulfillment_type === mode ? 'btn-primary' : ''}`}
-                    onClick={() => set({ fulfillment_type: mode })}
+                    className={`btn ${chosenWay === way.key ? 'btn-primary' : ''}`}
+                    onClick={() => set({ fulfillment_type: way.type, delivery_carrier: way.carrier })}
                   >
-                    {mode === 'pickup'
-                      ? '🏪 Pick up'
-                      : shop?.delivery_provider === 'own' ? '🛵 Delivery' : '🚴 Grab delivery'}
+                    {way.label}
                   </button>
                 ))}
               </div>
@@ -323,7 +351,7 @@ export default function Checkout() {
               {wantsDelivery ? (
                 <div className="totals-row">
                   <span className="muted">
-                    {shop?.delivery_provider === 'own' ? 'Delivery' : 'Grab delivery'}
+                    {form.delivery_carrier === 'own' ? 'Delivery' : 'Grab delivery'}
                     {quote?.delivery_quote?.distance_km
                       ? ` · ${quote.delivery_quote.distance_km} km`
                       : ''}

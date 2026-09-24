@@ -52,11 +52,12 @@ export const seedSettings = () => ({
   // 'sim' walks a fake driver through the states; 'live' books real
   // GrabExpress. The credentials stay in the environment — a client secret
   // has no business in a settings object the storefront can read.
-  // Who carries the order. 'grab' books a rider and takes Grab's fare;
-  // 'own' means the shop delivers it itself and charges the fee below.
-  // Switching to 'own' takes the Book driver button off the kitchen board and
-  // stops the API ever calling Grab.
-  delivery_provider: 'grab',
+  // The two ways an order can be delivered. They are independent: run both
+  // and the customer picks at checkout, or run one, or neither for a shop
+  // that only does pickup. Which one was chosen is recorded on the order,
+  // because it decides whether there is a rider to book later.
+  grab_delivery_enabled: true,
+  own_delivery_enabled: false,
   // Only used when delivering yourself. The fee is the flat charge plus the
   // per-km rate times the straight-line distance, so leaving the rate at 0
   // gives one flat fee for everywhere you deliver.

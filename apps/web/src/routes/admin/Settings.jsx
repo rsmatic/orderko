@@ -36,7 +36,8 @@ export default function Settings() {
           pickup_phone: s.pickup_phone ?? '',
           min_order_total: String(s.min_order_total ?? 0),
           delivery_enabled: Boolean(s.delivery_enabled),
-          delivery_provider: s.delivery_provider === 'own' ? 'own' : 'grab',
+          grab_delivery_enabled: Boolean(s.grab_delivery_enabled),
+          own_delivery_enabled: Boolean(s.own_delivery_enabled),
           own_delivery_fee: String(s.own_delivery_fee ?? 0),
           own_delivery_fee_per_km: String(s.own_delivery_fee_per_km ?? 0),
           max_delivery_km: String(s.max_delivery_km ?? 0),
@@ -78,7 +79,8 @@ export default function Settings() {
         pickup_phone: form.pickup_phone,
         min_order_total: Number(form.min_order_total),
         delivery_enabled: form.delivery_enabled,
-        delivery_provider: form.delivery_provider,
+        grab_delivery_enabled: form.grab_delivery_enabled,
+        own_delivery_enabled: form.own_delivery_enabled,
         own_delivery_fee: Number(form.own_delivery_fee),
         own_delivery_fee_per_km: Number(form.own_delivery_fee_per_km),
         max_delivery_km: Number(form.max_delivery_km),
@@ -322,54 +324,54 @@ export default function Settings() {
               Off, the shop is pickup only and the delivery choice disappears.
             </span>
 
-            <Field label="Who delivers">
-              <div className="row-wrap">
-                {[
-                  ['grab', '🚴 Grab books a rider'],
-                  ['own', '🛵 We deliver it ourselves'],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`btn ${form.delivery_provider === value ? 'btn-primary' : ''}`}
-                    onClick={() => set({ delivery_provider: value })}
+            <Field label="How customers can get it" hint="Pickup is always offered. Turn on either delivery option, or both — the customer chooses at checkout.">
+              <div className="stack-s">
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={form.grab_delivery_enabled}
                     disabled={!form.delivery_enabled}
-                  >
-                    {label}
-                  </button>
-                ))}
+                    onChange={(e) => set({ grab_delivery_enabled: e.target.checked })}
+                  />
+                  🚴 Grab delivery — a rider is booked and Grab sets the fare
+                </label>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={form.own_delivery_enabled}
+                    disabled={!form.delivery_enabled}
+                    onChange={(e) => set({ own_delivery_enabled: e.target.checked })}
+                  />
+                  🛵 Delivery (COD) — you deliver it, at the fee below
+                </label>
               </div>
             </Field>
-            <span className="hint" style={{ marginTop: '-.35rem' }}>
-              {form.delivery_provider === 'own'
-                ? 'Grab is switched off entirely: no rider is booked, the Book driver button leaves the kitchen board, and the fee below is charged instead of Grab\u2019s fare.'
-                : 'Grab quotes the fare and carries the order. The fee below is ignored.'}
-            </span>
 
-            {form.delivery_provider === 'own' ? (
+            {form.delivery_enabled && !form.grab_delivery_enabled && !form.own_delivery_enabled ? (
+              <div className="alert alert-warn small">
+                Delivery is on but neither option is, so checkout offers pickup
+                only. Turn one on, or switch delivery off to say so plainly.
+              </div>
+            ) : null}
+
+            {form.own_delivery_enabled ? (
               <>
               {Number(form.own_delivery_fee) === 0 && Number(form.own_delivery_fee_per_km) === 0 ? (
                 <div className="alert alert-warn small">
-                  Both fees are zero, so <strong>delivery is free</strong>. That is a
-                  fine choice, but an easy one to make by accident — a shop upgrading
+                  Both fees are zero, so <strong>your delivery is free</strong>. That is
+                  a fine choice, but an easy one to make by accident — a shop upgrading
                   from an older version starts at zero rather than at a default price.
                 </div>
               ) : null}
               <div className="grid grid-2">
-                <Field
-                  label="Delivery fee"
-                  hint="Charged on every delivery order."
-                >
+                <Field label="Your delivery fee" hint="Charged on every order you deliver. Grab orders are unaffected.">
                   <input
                     className="input" type="number" min="0" step="0.01"
                     value={form.own_delivery_fee}
                     onChange={(e) => set({ own_delivery_fee: e.target.value })}
                   />
                 </Field>
-                <Field
-                  label="Extra per km"
-                  hint="Added on top, times the straight-line distance. Leave at 0 for one flat fee everywhere."
-                >
+                <Field label="Extra per km" hint="Added on top, times the straight-line distance. Leave at 0 for one flat fee everywhere.">
                   <input
                     className="input" type="number" min="0" step="0.01"
                     value={form.own_delivery_fee_per_km}
@@ -395,7 +397,7 @@ export default function Settings() {
             {/* Meaningless when Grab is not carrying anything, and an
                 explanation left behind would describe a control that is no
                 longer on the page. */}
-            {form.delivery_provider === 'grab' ? (
+            {form.grab_delivery_enabled ? (
               <>
             <label className="switch">
               <input

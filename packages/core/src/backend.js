@@ -264,7 +264,8 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         pickup_address: s.pickup_address,
         min_order_total: Number(s.min_order_total),
         delivery_enabled: Boolean(s.delivery_enabled),
-        delivery_provider: s.delivery_provider === 'own' ? 'own' : 'grab',
+        grab_delivery_enabled: Boolean(s.grab_delivery_enabled),
+        own_delivery_enabled: Boolean(s.own_delivery_enabled),
         own_delivery_fee: Number(s.own_delivery_fee ?? 0),
         own_delivery_fee_per_km: Number(s.own_delivery_fee_per_km ?? 0),
         max_delivery_km: Number(s.max_delivery_km ?? 0),
@@ -320,8 +321,37 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
    * what lets everything downstream — the totals, the order record, the
    * summary panel — stay unaware of who is carrying the jar.
    */
-  async function quoteDelivery(dropoff) {
-    if (db.settings.delivery_provider === 'own') {
+  /**
+   * Which carriers a customer may choose right now, in the order they are
+   * offered. Empty means this shop is pickup only.
+   */
+  function enabledCarriers() {
+    if (!db.settings.delivery_enabled) return [];
+    return [
+      db.settings.grab_delivery_enabled ? 'grab' : null,
+      db.settings.own_delivery_enabled ? 'own' : null,
+    ].filter(Boolean);
+  }
+
+  /**
+   * Settles which carrier an order is using.
+   *
+   * A browser that predates the choice sends none, so fall back to the first
+   * one running rather than refusing an order over a field it has never heard
+   * of. Anything else must be a carrier that is actually switched on — the
+   * checkout only shows those, so a request for another one did not come from
+   * the checkout.
+   */
+  function resolveCarrier(requested) {
+    const running = enabledCarriers();
+    if (!running.length) throw bad('Delivery is switched off right now');
+    if (requested == null || requested === '') return running[0];
+    if (!running.includes(requested)) throw bad('That delivery option is not available');
+    return requested;
+  }
+
+  async function quoteDelivery(dropoff, carrier) {
+    if (carrier === 'own') {
       const km = haversineKm(
         { lat: Number(db.settings.pickup_lat), lng: Number(db.settings.pickup_lng) },
         { lat: Number(dropoff.lat), lng: Number(dropoff.lng) },
@@ -741,7 +771,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           address: body.delivery_address,
           lat: Number(body.delivery_lat),
           lng: Number(body.delivery_lng),
-        });
+        }, resolveCarrier(body.delivery_carrier));
       }
 
       const totals = totalsFor({
@@ -763,9 +793,10 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['POST', /^\/orders$/, async (m, body, user) => {
-      if (body.fulfillment_type === 'delivery' && !db.settings.delivery_enabled) {
-        throw bad('Delivery is switched off right now');
-      }
+      // Settled before anything is priced, so the fee and the record agree.
+      const carrier = body.fulfillment_type === 'delivery'
+        ? resolveCarrier(body.delivery_carrier)
+        : null;
       const paymentMethod = body.payment_method ?? 'cash';
       if (!PAYMENT_METHODS.includes(paymentMethod)) throw bad('Unknown payment method');
       // Taking a GCash order with nowhere to send the money would strand it in
@@ -790,7 +821,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           address: body.delivery_address,
           lat: Number(body.delivery_lat),
           lng: Number(body.delivery_lng),
-        });
+        }, carrier);
         deliveryFee = q.fee;
       }
 
@@ -806,6 +837,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         contact_name: body.contact_name,
         contact_phone: body.contact_phone,
         contact_email: body.contact_email ?? user?.email ?? null,
+        delivery_carrier: carrier,
         delivery_address: body.delivery_address ?? null,
         delivery_notes: body.delivery_notes ?? null,
         delivery_lat: body.delivery_lat ?? null,
@@ -1049,8 +1081,12 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['POST', /^\/delivery\/orders\/(\d+)\/book$/, async (m, body, user) => {
-      if (db.settings.delivery_provider === 'own') {
-        throw bad('This shop delivers its own orders — there is no rider to book');
+      // Read off the order rather than the settings: both carriers can be
+      // running at once, and an order placed as our own delivery stays ours
+      // even if Grab is switched on beside it.
+      const carried = db.orders.find((o) => o.id === Number(m[1]))?.delivery_carrier;
+      if (carried === 'own') {
+        throw bad('This order is being delivered by the shop — there is no rider to book');
       }
       requireRole(user, 'admin', 'manager');
       const orderId = Number(m[1]);
@@ -1327,16 +1363,15 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
         'max_delivery_km', 'grab_mode',
-        'delivery_provider', 'own_delivery_fee', 'own_delivery_fee_per_km',
+        'grab_delivery_enabled', 'own_delivery_enabled',
+        'own_delivery_fee', 'own_delivery_fee_per_km',
       ];
       const patch = {};
       for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
       if (!Object.keys(patch).length) throw bad('Nothing to update');
 
-      if (patch.delivery_provider !== undefined) {
-        if (!['grab', 'own'].includes(patch.delivery_provider)) {
-          throw bad('Delivery must be carried by "grab" or "own"');
-        }
+      for (const k of ['grab_delivery_enabled', 'own_delivery_enabled']) {
+        if (patch[k] !== undefined) patch[k] = Boolean(patch[k]);
       }
       for (const k of ['own_delivery_fee', 'own_delivery_fee_per_km']) {
         if (patch[k] === undefined) continue;

@@ -6,7 +6,6 @@ import OrderDetail from '../../components/OrderDetail';
 import { useLiveOrders } from '../../lib/useLiveOrders';
 import CopyOrderLink from '../../components/CopyOrderLink';
 import LiveDot from '../../components/LiveDot';
-import { useShop } from '../../context/ShopContext';
 
 const COLUMNS = [
   { status: 'pending',    title: 'New',        next: 'confirmed',  action: 'Confirm' },
@@ -20,8 +19,6 @@ const COLUMNS = [
 const STALE_MINUTES = { pending: 5, confirmed: 10, preparing: 25, ready: 15, dispatched: 60 };
 
 export default function KitchenQueue() {
-  const { shop } = useShop();
-  const ownDelivery = shop?.delivery_provider === 'own';
   const [orders, setOrders] = useState(null);
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState(null);
@@ -107,7 +104,7 @@ export default function KitchenQueue() {
                       // Nothing to book when the shop carries its own
                       // orders; the server refuses it too.
                       const needsDriver =
-                        !ownDelivery &&
+                        order.delivery_carrier !== 'own' &&
                         order.fulfillment_type === 'delivery' &&
                         order.status === 'ready' &&
                         !order.delivery_status;
