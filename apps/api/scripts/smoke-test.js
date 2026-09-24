@@ -644,7 +644,111 @@ async function main() {
   const audit = await call('GET', '/admin/audit?limit=20', { token: adminToken });
   check('the audit log recorded our changes', audit.body?.entries?.length > 0);
 
-  // ------------------------------------------------------ money owed
+  // ----------------------------------------------- delivering it yourself
+  section('Own delivery');
+
+  const DROP = { lat: 14.5507, lng: 121.0494 };
+  const quoteDrop = (extra = {}) => ({
+    items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+    fulfillment_type: 'delivery',
+    delivery_address: 'Level 21, BGC Corporate Center, Taguig',
+    delivery_lat: DROP.lat,
+    delivery_lng: DROP.lng,
+    ...extra,
+  });
+
+  const grabQuote = await call('POST', '/orders/quote', { body: quoteDrop() });
+  check('Grab quotes while it is the carrier', grabQuote.status === 200, grabQuote.body?.error);
+  check('and the quote says who gave it',
+    grabQuote.body?.delivery_quote?.provider !== 'own',
+    JSON.stringify(grabQuote.body?.delivery_quote?.provider));
+
+  const badProvider = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { delivery_provider: 'uber' },
+  });
+  check('an unknown carrier is refused', badProvider.status === 400, `got ${badProvider.status}`);
+
+  const negativeFee = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { own_delivery_fee: -50 },
+  });
+  check('a negative fee is refused', negativeFee.status === 400, `got ${negativeFee.status}`);
+  const nanFee = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { own_delivery_fee: 'free' },
+  });
+  check('a fee that is not a number is refused', nanFee.status === 400, `got ${nanFee.status}`);
+
+  const FLAT = 59;
+  const switched = await call('PUT', '/admin/settings', {
+    token: adminToken,
+    body: { delivery_provider: 'own', own_delivery_fee: FLAT, own_delivery_fee_per_km: 0 },
+  });
+  check('the shop can take delivery over from Grab', switched.status === 200, switched.body?.error);
+  check('the storefront is told who delivers',
+    (await call('GET', '/catalog/settings')).body?.delivery_provider === 'own');
+
+  const ownQuote = await call('POST', '/orders/quote', { body: quoteDrop() });
+  check('a flat fee is quoted', Number(ownQuote.body?.delivery_fee) === FLAT,
+    `got ${ownQuote.body?.delivery_fee}`);
+  check('the quote reports the shop as the carrier',
+    ownQuote.body?.delivery_quote?.provider === 'own',
+    JSON.stringify(ownQuote.body?.delivery_quote));
+  check('and still measures the distance',
+    Number(ownQuote.body?.delivery_quote?.distance_km) > 0);
+
+  // Per-km on top: the fee has to move with the distance, or the setting is a
+  // decoration.
+  const PER_KM = 10;
+  await call('PUT', '/admin/settings', {
+    token: adminToken, body: { own_delivery_fee_per_km: PER_KM },
+  });
+  const perKmQuote = await call('POST', '/orders/quote', { body: quoteDrop() });
+  const km = Number(ownQuote.body.delivery_quote.distance_km);
+  const expected = Math.round((FLAT + PER_KM * km) * 100) / 100;
+  check('the per-km rate is applied',
+    Math.abs(Number(perKmQuote.body?.delivery_fee) - expected) < 0.05,
+    `${perKmQuote.body?.delivery_fee} vs ${expected} (${km} km)`);
+  check('which is more than the flat fee alone',
+    Number(perKmQuote.body.delivery_fee) > FLAT);
+
+  // What the browser is shown and what it is charged must agree.
+  await call('PUT', '/admin/settings', { token: adminToken, body: { own_delivery_fee_per_km: 0 } });
+  const codOrder = await call('POST', '/orders', {
+    token: customerToken,
+    body: quoteDrop({
+      contact_name: 'Cash Customer',
+      contact_phone: '+639170000007',
+      payment_method: 'cash',
+    }),
+  });
+  check('a COD delivery order is accepted', codOrder.status === 201,
+    JSON.stringify(codOrder.body?.error ?? codOrder.body?.details));
+  check('it is charged the quoted fee', Number(codOrder.body?.delivery_fee) === FLAT,
+    `got ${codOrder.body?.delivery_fee}`);
+  check('it is cash on delivery', codOrder.body?.payment_method === 'cash');
+  check('and starts unpaid, because the money arrives with the food',
+    codOrder.body?.payment_status === 'unpaid');
+
+  // Grab must be genuinely off, not merely hidden.
+  const bookAnyway = await call('POST', `/delivery/orders/${codOrder.body.id}/book`, {
+    token: managerToken,
+  });
+  check('no rider can be booked while the shop delivers', bookAnyway.status === 400,
+    `got ${bookAnyway.status}`);
+
+  // The radius still applies — it is not Grab's rule, it is the shop's.
+  const tooFar = await call('POST', '/orders/quote', {
+    body: quoteDrop({ delivery_lat: 10.3157, delivery_lng: 123.8854 }),
+  });
+  check('a destination out of range is still refused', tooFar.status === 400,
+    `got ${tooFar.status}`);
+
+  // Put Grab back so the rest of the suite runs against the seeded shop.
+  await call('PUT', '/admin/settings', {
+    token: adminToken, body: { delivery_provider: 'grab' },
+  });
+  check('Grab can be put back', (await call('GET', '/catalog/settings')).body?.delivery_provider === 'grab');
+
+    // ------------------------------------------------------ money owed
   section('Unpaid');
 
   const owedBefore = await call('GET', '/admin/stats?days=30', { token: adminToken });

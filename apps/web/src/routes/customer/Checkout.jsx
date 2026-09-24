@@ -172,7 +172,9 @@ export default function Checkout() {
                     className={`btn ${form.fulfillment_type === mode ? 'btn-primary' : ''}`}
                     onClick={() => set({ fulfillment_type: mode })}
                   >
-                    {mode === 'pickup' ? '🏪 Pick up' : '🚴 Grab delivery'}
+                    {mode === 'pickup'
+                      ? '🏪 Pick up'
+                      : shop?.delivery_provider === 'own' ? '🛵 Delivery' : '🚴 Grab delivery'}
                   </button>
                 ))}
               </div>
@@ -248,7 +250,9 @@ export default function Checkout() {
                   value={form.payment_method}
                   onChange={(e) => set({ payment_method: e.target.value })}
                 >
-                  <option value="cash">Cash on {wantsDelivery ? 'delivery' : 'pickup'}</option>
+                  <option value="cash">
+                    {wantsDelivery ? 'Cash on delivery (COD)' : 'Cash on pickup'}
+                  </option>
                   {hasGcash ? <option value="gcash">GCash</option> : null}
                   <option value="card">Card</option>
                   <option value="ewallet">E-wallet</option>
@@ -319,7 +323,7 @@ export default function Checkout() {
               {wantsDelivery ? (
                 <div className="totals-row">
                   <span className="muted">
-                    Grab delivery
+                    {shop?.delivery_provider === 'own' ? 'Delivery' : 'Grab delivery'}
                     {quote?.delivery_quote?.distance_km
                       ? ` · ${quote.delivery_quote.distance_km} km`
                       : ''}

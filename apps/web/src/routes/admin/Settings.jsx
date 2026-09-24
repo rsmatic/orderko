@@ -36,6 +36,9 @@ export default function Settings() {
           pickup_phone: s.pickup_phone ?? '',
           min_order_total: String(s.min_order_total ?? 0),
           delivery_enabled: Boolean(s.delivery_enabled),
+          delivery_provider: s.delivery_provider === 'own' ? 'own' : 'grab',
+          own_delivery_fee: String(s.own_delivery_fee ?? 0),
+          own_delivery_fee_per_km: String(s.own_delivery_fee_per_km ?? 0),
           max_delivery_km: String(s.max_delivery_km ?? 0),
           grab_mode: s.grab_mode ?? res.grab_mode ?? 'sim',
           order_lead_mins: String(s.order_lead_mins ?? 20),
@@ -75,6 +78,9 @@ export default function Settings() {
         pickup_phone: form.pickup_phone,
         min_order_total: Number(form.min_order_total),
         delivery_enabled: form.delivery_enabled,
+        delivery_provider: form.delivery_provider,
+        own_delivery_fee: Number(form.own_delivery_fee),
+        own_delivery_fee_per_km: Number(form.own_delivery_fee_per_km),
         max_delivery_km: Number(form.max_delivery_km),
         grab_mode: form.grab_mode,
         order_lead_mins: Number(form.order_lead_mins),
@@ -310,8 +316,60 @@ export default function Settings() {
                 type="checkbox" checked={form.delivery_enabled}
                 onChange={(e) => set({ delivery_enabled: e.target.checked })}
               />
-              Offer Grab delivery at checkout
+              Offer delivery at checkout
             </label>
+            <span className="hint" style={{ marginTop: '-.35rem' }}>
+              Off, the shop is pickup only and the delivery choice disappears.
+            </span>
+
+            <Field label="Who delivers">
+              <div className="row-wrap">
+                {[
+                  ['grab', '🚴 Grab books a rider'],
+                  ['own', '🛵 We deliver it ourselves'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`btn ${form.delivery_provider === value ? 'btn-primary' : ''}`}
+                    onClick={() => set({ delivery_provider: value })}
+                    disabled={!form.delivery_enabled}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <span className="hint" style={{ marginTop: '-.35rem' }}>
+              {form.delivery_provider === 'own'
+                ? 'Grab is switched off entirely: no rider is booked, the Book driver button leaves the kitchen board, and the fee below is charged instead of Grab\u2019s fare.'
+                : 'Grab quotes the fare and carries the order. The fee below is ignored.'}
+            </span>
+
+            {form.delivery_provider === 'own' ? (
+              <div className="grid grid-2">
+                <Field
+                  label="Delivery fee"
+                  hint="Charged on every delivery order."
+                >
+                  <input
+                    className="input" type="number" min="0" step="0.01"
+                    value={form.own_delivery_fee}
+                    onChange={(e) => set({ own_delivery_fee: e.target.value })}
+                  />
+                </Field>
+                <Field
+                  label="Extra per km"
+                  hint="Added on top, times the straight-line distance. Leave at 0 for one flat fee everywhere."
+                >
+                  <input
+                    className="input" type="number" min="0" step="0.01"
+                    value={form.own_delivery_fee_per_km}
+                    onChange={(e) => set({ own_delivery_fee_per_km: e.target.value })}
+                  />
+                </Field>
+              </div>
+            ) : null}
 
             <Field
               label="Delivery radius (km)"
@@ -325,6 +383,11 @@ export default function Settings() {
               />
             </Field>
 
+            {/* Meaningless when Grab is not carrying anything, and an
+                explanation left behind would describe a control that is no
+                longer on the page. */}
+            {form.delivery_provider === 'grab' ? (
+              <>
             <label className="switch">
               <input
                 type="checkbox"
@@ -355,6 +418,8 @@ export default function Settings() {
                 {' '}button on an order.
               </div>
             )}
+              </>
+            ) : null}
           </div>
         </section>
 

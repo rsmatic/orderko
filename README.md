@@ -149,6 +149,16 @@ The delivery layer is an adapter with two interchangeable providers behind one
 interface (`quote` / `book` / `track` / `cancel`). The core never knows which
 is in play.
 
+Grab can also be switched off entirely. **Admin → Shop settings → Delivery**
+chooses who carries the order: Grab books a rider and sets the fare, or the
+shop delivers it itself and charges a fee you set — a flat amount, plus an
+optional per-km rate over the straight-line distance. Choosing your own
+delivery stops the API ever calling Grab and takes **Book driver** off the
+kitchen board; the server refuses a booking too, so it is off rather than
+hidden. The delivery radius still applies either way, because it is the
+shop’s rule and not Grab’s. Cash on delivery is a payment method at
+checkout and the order stays unpaid until the money arrives with the food.
+
 The mode is a shop setting — **Admin → Shop settings → Delivery** has a switch,
 so it changes without editing a file or restarting. `GRAB_MODE` only seeds a
 brand-new store. Credentials stay in the environment: a client secret does not

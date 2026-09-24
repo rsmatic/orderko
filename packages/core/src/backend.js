@@ -264,6 +264,9 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         pickup_address: s.pickup_address,
         min_order_total: Number(s.min_order_total),
         delivery_enabled: Boolean(s.delivery_enabled),
+        delivery_provider: s.delivery_provider === 'own' ? 'own' : 'grab',
+        own_delivery_fee: Number(s.own_delivery_fee ?? 0),
+        own_delivery_fee_per_km: Number(s.own_delivery_fee_per_km ?? 0),
         max_delivery_km: Number(s.max_delivery_km ?? 0),
         pickup_lat: Number(s.pickup_lat),
         pickup_lng: Number(s.pickup_lng),
@@ -304,6 +307,37 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           `We deliver within ${limit} km — choose pickup, or a closer address.`,
       );
     }
+  }
+
+  /**
+   * What the delivery costs, whoever is carrying it.
+   *
+   * Both the quote and the checkout need this, and they must agree: the
+   * browser is shown one number and charged another if they drift apart. So
+   * neither calls the provider directly any more.
+   *
+   * Delivering yourself returns a quote of the same shape as Grab's, which is
+   * what lets everything downstream — the totals, the order record, the
+   * summary panel — stay unaware of who is carrying the jar.
+   */
+  async function quoteDelivery(dropoff) {
+    if (db.settings.delivery_provider === 'own') {
+      const km = haversineKm(
+        { lat: Number(db.settings.pickup_lat), lng: Number(db.settings.pickup_lng) },
+        { lat: Number(dropoff.lat), lng: Number(dropoff.lng) },
+      );
+      const flat = Number(db.settings.own_delivery_fee ?? 0);
+      const perKm = Number(db.settings.own_delivery_fee_per_km ?? 0);
+      return {
+        provider: 'own',
+        fee: round2(flat + perKm * km),
+        distance_km: round2(km),
+        // The shop knows its own area better than a formula would; the prep
+        // time it already advertises is a more honest number than a guess.
+        eta_minutes: Number(db.settings.order_lead_mins ?? 0) || null,
+      };
+    }
+    return delivery.quote({ pickup: pickupPlace(), dropoff });
   }
 
   const pickupPlace = () => ({
@@ -703,13 +737,10 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       let deliveryQuote = null;
       if (body.fulfillment_type === 'delivery' && body.delivery_lat != null) {
         assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng });
-        deliveryQuote = await delivery.quote({
-          pickup: pickupPlace(),
-          dropoff: {
-            address: body.delivery_address,
-            lat: Number(body.delivery_lat),
-            lng: Number(body.delivery_lng),
-          },
+        deliveryQuote = await quoteDelivery({
+          address: body.delivery_address,
+          lat: Number(body.delivery_lat),
+          lng: Number(body.delivery_lng),
         });
       }
 
@@ -755,13 +786,10 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           throw bad('Delivery orders need an address with coordinates');
         }
         assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng });
-        const q = await delivery.quote({
-          pickup: pickupPlace(),
-          dropoff: {
-            address: body.delivery_address,
-            lat: Number(body.delivery_lat),
-            lng: Number(body.delivery_lng),
-          },
+        const q = await quoteDelivery({
+          address: body.delivery_address,
+          lat: Number(body.delivery_lat),
+          lng: Number(body.delivery_lng),
         });
         deliveryFee = q.fee;
       }
@@ -1021,6 +1049,9 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['POST', /^\/delivery\/orders\/(\d+)\/book$/, async (m, body, user) => {
+      if (db.settings.delivery_provider === 'own') {
+        throw bad('This shop delivers its own orders — there is no rider to book');
+      }
       requireRole(user, 'admin', 'manager');
       const orderId = Number(m[1]);
       const order = db.orders.find((o) => o.id === orderId);
@@ -1296,10 +1327,25 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
         'max_delivery_km', 'grab_mode',
+        'delivery_provider', 'own_delivery_fee', 'own_delivery_fee_per_km',
       ];
       const patch = {};
       for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
       if (!Object.keys(patch).length) throw bad('Nothing to update');
+
+      if (patch.delivery_provider !== undefined) {
+        if (!['grab', 'own'].includes(patch.delivery_provider)) {
+          throw bad('Delivery must be carried by "grab" or "own"');
+        }
+      }
+      for (const k of ['own_delivery_fee', 'own_delivery_fee_per_km']) {
+        if (patch[k] === undefined) continue;
+        const n = Number(patch[k]);
+        // A negative fee would pay the customer to order, and NaN would make
+        // every total NaN from here on.
+        if (!Number.isFinite(n) || n < 0) throw bad('A delivery fee cannot be negative');
+        patch[k] = round2(n);
+      }
 
       if (patch.grab_mode !== undefined) {
         if (!['sim', 'live'].includes(patch.grab_mode)) {
