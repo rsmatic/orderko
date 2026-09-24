@@ -26,9 +26,12 @@ services:
       SEED_SAMPLE_ORDERS: ${SEED_SAMPLE_ORDERS:-true}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       SEED_PASSWORD: ${SEED_PASSWORD:?set SEED_PASSWORD in .env}
-      # Caddy puts the app and the API on one origin, so this is only a
-      # fallback for reaching the API directly.
-      CORS_ORIGIN: ${PUBLIC_BASE_URL:-http://localhost}
+      # Caddy puts the app and the API on one origin, so the browser does not
+      # normally make a cross-origin request at all. Set CORS_ORIGIN only to
+      # let a front end hosted somewhere else — GitHub Pages, say — call this
+      # API: a comma-separated list, and every entry must be https:// if that
+      # front end is, because a secure page may not call an insecure one.
+      CORS_ORIGIN: ${CORS_ORIGIN:-${PUBLIC_BASE_URL:-http://localhost}}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
       GRAB_MODE: ${GRAB_MODE:-sim}
       GRAB_AUTO_ADVANCE_SECONDS: ${GRAB_AUTO_ADVANCE_SECONDS:-25}
