@@ -644,6 +644,80 @@ async function main() {
   const audit = await call('GET', '/admin/audit?limit=20', { token: adminToken });
   check('the audit log recorded our changes', audit.body?.entries?.length > 0);
 
+  // ------------------------------------------------------ money owed
+  section('Unpaid');
+
+  const owedBefore = await call('GET', '/admin/stats?days=30', { token: adminToken });
+  check('stats report money owed', typeof owedBefore.body?.unpaid?.total === 'number',
+    JSON.stringify(owedBefore.body?.unpaid));
+  check('and how many orders owe it', Number.isInteger(owedBefore.body?.unpaid?.orders));
+
+  const owedOrder = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Owes Money',
+      contact_phone: '+639170000005',
+    },
+  });
+  check('an unpaid order was placed', owedOrder.status === 201,
+    JSON.stringify(owedOrder.body?.error ?? owedOrder.body?.details));
+
+  const owedAfter = await call('GET', '/admin/stats?days=30', { token: adminToken });
+  check('it is counted as owing', owedAfter.body?.unpaid?.orders === owedBefore.body.unpaid.orders + 1,
+    `${owedBefore.body.unpaid.orders} -> ${owedAfter.body?.unpaid?.orders}`);
+  check('and its total is added',
+    Math.abs(owedAfter.body.unpaid.total - (owedBefore.body.unpaid.total + owedOrder.body.total)) < 0.01,
+    `${owedBefore.body.unpaid.total} + ${owedOrder.body.total} vs ${owedAfter.body.unpaid.total}`);
+  check('the oldest debt is dated', typeof owedAfter.body?.unpaid?.oldest_at === 'string');
+
+  // The list behind the tile: who owes, not just how much.
+  const owedList = await call('GET', '/orders?payment_status=unpaid&limit=200', { token: adminToken });
+  check('unpaid orders can be listed', owedList.status === 200, owedList.body?.error);
+  check('every row is genuinely unpaid',
+    owedList.body.orders.every((o) => o.payment_status === 'unpaid'));
+  check('the new one is in the list',
+    owedList.body.orders.some((o) => o.id === owedOrder.body.id));
+  check('rows carry who to chase',
+    owedList.body.orders.every((o) => typeof o.contact_name === 'string' && o.contact_name.length > 0));
+
+  // Paying it must take it off both the tile and the list.
+  await call('PATCH', `/orders/${owedOrder.body.id}/payment`, {
+    token: adminToken, body: { payment_status: 'paid' },
+  });
+  const settled = await call('GET', '/admin/stats?days=30', { token: adminToken });
+  check('paying removes it from the total',
+    settled.body?.unpaid?.orders === owedBefore.body.unpaid.orders,
+    `${settled.body?.unpaid?.orders} vs ${owedBefore.body.unpaid.orders}`);
+  check('and from the list',
+    !(await call('GET', '/orders?payment_status=unpaid&limit=200', { token: adminToken }))
+      .body.orders.some((o) => o.id === owedOrder.body.id));
+
+  // A cancelled order is not a debt, however it was left.
+  const scrapped = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Changed Their Mind',
+      contact_phone: '+639170000006',
+    },
+  });
+  await call('PATCH', `/orders/${scrapped.body.id}/status`, {
+    token: adminToken, body: { status: 'cancelled', reason: 'smoke test' },
+  });
+  const afterCancel = await call('GET', '/admin/stats?days=30', { token: adminToken });
+  check('a cancelled order is not owed',
+    afterCancel.body?.unpaid?.orders === owedBefore.body.unpaid.orders,
+    `${afterCancel.body?.unpaid?.orders} vs ${owedBefore.body.unpaid.orders}`);
+  check('and is not in the chase list',
+    !(await call('GET', '/orders?payment_status=unpaid&limit=200', { token: adminToken }))
+      .body.orders.some((o) => o.id === scrapped.body.id));
+
+  check('a customer cannot read the shop-wide stats',
+    (await call('GET', '/admin/stats?days=30', { token: customerToken })).status === 403);
+
   // ------------------------------------------------ the shareable link
   section('Order tracking link');
 

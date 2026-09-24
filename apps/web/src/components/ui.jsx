@@ -157,12 +157,22 @@ export function Field({ label, hint, error, children }) {
   );
 }
 
-export function Stat({ label, value, note, tone }) {
-  return (
-    <div className="card stat">
+export function Stat({ label, value, note, tone, onClick, hint }) {
+  const body = (
+    <>
       <span className="stat-label">{label}</span>
       <span className="stat-value" style={tone ? { color: `var(--${tone})` } : undefined}>{value}</span>
       {note ? <span className="stat-note">{note}</span> : null}
-    </div>
+    </>
+  );
+
+  // A tile you can open is a button, not a div with a click handler: it has
+  // to be reachable by keyboard and announce itself as something that acts.
+  if (!onClick) return <div className="card stat">{body}</div>;
+  return (
+    <button type="button" className="card stat stat-action" onClick={onClick} title={hint}>
+      {body}
+      <span className="stat-more" aria-hidden="true">View →</span>
+    </button>
   );
 }

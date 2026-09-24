@@ -917,11 +917,17 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const offset = Math.max(0, Number(query.get('offset') ?? 0));
       const statuses = (query.get('status') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
       const type = query.get('fulfillment_type');
+      const payment = query.get('payment_status');
       const search = (query.get('search') ?? '').toLowerCase();
 
       let rows = db.orders.filter((o) => (isStaff(user) ? true : o.customer_id === user.id));
       if (statuses.length) rows = rows.filter((o) => statuses.includes(o.status));
       if (type) rows = rows.filter((o) => o.fulfillment_type === type);
+      // Cancelled orders are not debts, so an unpaid filter leaves them out.
+      if (payment) {
+        rows = rows.filter((o) => o.payment_status === payment
+          && (payment !== 'unpaid' || o.status !== 'cancelled'));
+      }
       if (search) {
         rows = rows.filter((o) =>
           o.order_number.toLowerCase().includes(search) ||
@@ -1375,8 +1381,28 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const statusTotals = new Map();
       for (const o of inWindow) statusTotals.set(o.status, (statusTotals.get(o.status) ?? 0) + 1);
 
+      /**
+       * Money owed, over the whole book rather than the chosen window.
+       *
+       * A debt does not stop being owed because it is older than thirty days,
+       * and an unpaid tile that quietly drops the oldest ones is worse than no
+       * tile. Cancelled orders are not debts.
+       */
+      const owing = db.orders.filter(
+        (o) => o.payment_status !== 'paid' && o.status !== 'cancelled',
+      );
+      const oldestOwing = owing.reduce(
+        (oldest, o) => (oldest === null || new Date(o.created_at) < new Date(oldest) ? o.created_at : oldest),
+        null,
+      );
+
       return {
         days,
+        unpaid: {
+          orders: owing.length,
+          total: round2(owing.reduce((sum, o) => sum + o.total, 0)),
+          oldest_at: oldestOwing,
+        },
         today: {
           orders: todays.length,
           revenue: round2(todays.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + o.total, 0)),

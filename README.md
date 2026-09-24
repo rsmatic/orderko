@@ -132,6 +132,11 @@ Everything a manager can do, plus:
   an order number could be walked from OK-240001 through the whole book. The
   token is fetched when the button is pressed, not shipped with every order
   in the list.
+- **Not yet paid** — a tile on Overview showing what the shop is owed, over
+  the whole book rather than the chosen window: a debt does not stop being
+  owed because it is older than thirty days. Cancelled orders are not debts.
+  Open it to see who owes what and how long they have owed it, and pick a row
+  to go straight to the order and mark it paid.
 - **Activity log** — every staff change, who made it and when.
 - **Danger zone** — remove every order, behind the admin's own password. The
   menu, accounts and settings are untouched, and the deletion is logged.

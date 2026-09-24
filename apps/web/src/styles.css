@@ -752,3 +752,41 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .live-dot-mark { animation: none; }
 }
+
+/* ------------------------------------------------------- openable stat tile */
+
+/* A button, so it is keyboard-reachable — which means undoing the browser's
+   button styling and putting the card's own back. */
+.stat-action {
+  position: relative;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.stat-action:hover { border-color: var(--berry); box-shadow: var(--shadow-lg); }
+.stat-action:active { transform: translateY(1px); }
+.stat-action:focus-visible { outline: 2px solid var(--berry); outline-offset: 2px; }
+
+/* The affordance sits in the corner rather than under the number, so the tile
+   stays the same height as the ones beside it. */
+.stat-more {
+  position: absolute; top: .9rem; right: 1rem;
+  font-size: .7rem; font-weight: 700; letter-spacing: .03em;
+  color: var(--berry);
+  opacity: 0; transition: opacity .15s ease;
+}
+.stat-action:hover .stat-more,
+.stat-action:focus-visible .stat-more { opacity: 1; }
+
+/* Touch has no hover to reveal it, so on a phone it is simply always there. */
+@media (hover: none) {
+  .stat-more { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-action, .stat-more { transition: none; }
+  .stat-action:active { transform: none; }
+}

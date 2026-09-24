@@ -6,6 +6,8 @@ import {
 import { api, money } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Stat, Empty } from '../../components/ui';
+import UnpaidOrders from '../../components/UnpaidOrders';
+import OrderDetail from '../../components/OrderDetail';
 
 /**
  * Chart roles, not raw hex, so the palette swaps in one place.
@@ -57,17 +59,24 @@ export default function Reports() {
   const [days, setDays] = useState(30);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const [showTable, setShowTable] = useState(false);
+  const [showUnpaid, setShowUnpaid] = useState(false);
+  const [openOrderId, setOpenOrderId] = useState(null);
+
+  // Only a change of window blanks the page. A refetch after marking an
+  // order paid should update the numbers in place, not throw the reader
+  // back to a loading screen.
+  useEffect(() => { setStats(null); }, [days]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setStats(null);
     api
       .get(`/admin/stats?days=${days}`, { signal: controller.signal })
       .then((res) => { setStats(res); setError(''); })
       .catch((err) => { if (err.name !== 'AbortError') setError(err.message); });
     return () => controller.abort();
-  }, [days]);
+  }, [days, reloadKey]);
 
   if (error) {
     return (
@@ -93,6 +102,17 @@ export default function Reports() {
   const topOptions = stats.top_options.slice(0, 10).map((o) => ({
     ...o, picks: Number(o.picks), label: o.option_name,
   }));
+  const owing = stats.unpaid?.orders ?? 0;
+  // The age of the oldest debt decides whether this needs chasing today;
+  // a count on its own does not say that.
+  const owedDays = stats.unpaid?.oldest_at
+    ? Math.floor((Date.now() - new Date(stats.unpaid.oldest_at)) / 86400000)
+    : null;
+  const unpaidNote = owing === 0
+    ? "Everyone has paid"
+    : owing + " order" + (owing === 1 ? "" : "s")
+      + (owedDays > 0 ? " \u00b7 oldest " + owedDays + "d" : "");
+
   const delivery = stats.fulfillment.find((f) => f.fulfillment_type === 'delivery');
   const pickup = stats.fulfillment.find((f) => f.fulfillment_type === 'pickup');
 
@@ -131,6 +151,14 @@ export default function Reports() {
             label="Average order"
             value={money(stats.period.avg_order_value)}
             note="Excludes cancelled"
+          />
+          <Stat
+            label="Not yet paid"
+            value={money(stats.unpaid?.total ?? 0)}
+            note={unpaidNote}
+            tone={stats.unpaid?.orders ? 'berry' : undefined}
+            onClick={stats.unpaid?.orders ? () => setShowUnpaid(true) : undefined}
+            hint="See who has not paid"
           />
           <Stat
             label="Open right now"
@@ -347,6 +375,23 @@ export default function Reports() {
           </section>
         </div>
       </div>
+
+      {showUnpaid ? (
+        <UnpaidOrders
+          onClose={() => setShowUnpaid(false)}
+          onPick={(id) => { setShowUnpaid(false); setOpenOrderId(id); }}
+        />
+      ) : null}
+
+      {openOrderId ? (
+        <OrderDetail
+          orderId={openOrderId}
+          onClose={() => setOpenOrderId(null)}
+          // Marking one paid has to move the tile behind the sheet, or the
+          // number sits there contradicting what you just did.
+          onChanged={() => setReloadKey((k) => k + 1)}
+        />
+      ) : null}
     </>
   );
 }
