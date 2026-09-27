@@ -3,6 +3,8 @@ import { api, money, dateTime, relativeMinutes } from '../lib/api';
 import { Modal, Alert, StatusBadge, DeliveryBadge, PaymentBadge, Spinner, Loading } from './ui';
 import CopyOrderLink from './CopyOrderLink';
 import EditOrderItems from './EditOrderItems';
+import DeleteOrder from './DeleteOrder';
+import { useAuth } from '../context/AuthContext';
 
 const NEXT_LABEL = {
   confirmed:  'Confirm order',
@@ -30,7 +32,9 @@ const TRANSITIONS = {
  * controls, payment, and the Grab booking.
  */
 export default function OrderDetail({ orderId, onClose, onChanged }) {
+  const { user: me } = useAuth();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [menu, setMenu] = useState(null);
 
   // Only needed to add a line, so it is fetched when editing starts rather
@@ -122,6 +126,7 @@ export default function OrderDetail({ orderId, onClose, onChanged }) {
   const driverActive = d && !['completed', 'cancelled', 'failed', 'returned'].includes(d.status);
 
   return (
+    <>
     <Modal
       title={order.order_number}
       subtitle={`${dateTime(order.created_at)} · ${relativeMinutes(order.created_at)} · ${isDelivery ? 'Grab delivery' : 'Pickup'}`}
@@ -130,6 +135,12 @@ export default function OrderDetail({ orderId, onClose, onChanged }) {
       footer={
         <>
           <CopyOrderLink orderId={order.id} label="Copy link for customer" />
+          {/* Deleting destroys a financial record, so it stops at admin. */}
+          {me?.role === 'admin' ? (
+            <button type="button" className="btn btn-berry" onClick={() => setDeleting(true)}>
+              Delete
+            </button>
+          ) : null}
           <button type="button" className="btn" onClick={onClose}>Close</button>
           {nextStatuses
             .filter((s) => s !== 'cancelled')
@@ -378,5 +389,15 @@ export default function OrderDetail({ orderId, onClose, onChanged }) {
         </div>
       </section>
     </Modal>
+
+    {deleting ? (
+      <DeleteOrder
+        order={order}
+        onClose={() => setDeleting(false)}
+        onError={setError}
+        onDeleted={() => { setDeleting(false); onChanged?.(); onClose(); }}
+      />
+    ) : null}
+    </>
   );
 }

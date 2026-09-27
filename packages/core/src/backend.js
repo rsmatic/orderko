@@ -1165,6 +1165,56 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       return loadOrder(order.id);
     }],
 
+    /**
+     * Removes an order from the books entirely.
+     *
+     * Cancelling records that an order was called off; this says it should
+     * never have been counted — a test order, a duplicate. Admin only, because
+     * it destroys a financial record and takes the money with it: the revenue
+     * on the reports drops, and the deletion is the only trace left.
+     *
+     * Stock is put back, unlike cancelling. Cancelling leaves an order in the
+     * books to explain where the jar went; a deleted order explains nothing,
+     * so anything it was holding has to be returned or the count is quietly
+     * wrong for ever.
+     */
+    ['DELETE', /^\/orders\/(\d+)$/, async (m, body, user) => {
+      requireRole(user, 'admin');
+      const order = db.orders.find((o) => o.id === Number(m[1]));
+      if (!order) throw notFound('Order not found');
+
+      const lines = linesOf(order.id);
+      moveStock(lines, +1);
+
+      const itemIds = new Set(lines.map((i) => i.id));
+      const deliveryIds = new Set(
+        db.deliveries.filter((d) => d.order_id === order.id).map((d) => d.id),
+      );
+
+      db.orderItemOptions = db.orderItemOptions.filter((o) => !itemIds.has(o.order_item_id));
+      db.orderItems = db.orderItems.filter((i) => i.order_id !== order.id);
+      db.history = db.history.filter((h) => h.order_id !== order.id);
+      db.deliveryEvents = db.deliveryEvents.filter((e) => !deliveryIds.has(e.delivery_id));
+      db.deliveries = db.deliveries.filter((d) => d.order_id !== order.id);
+      db.orders = db.orders.filter((o) => o.id !== order.id);
+
+      // Written before the order is gone so the log still knows what it was.
+      audit(user, 'order.delete', 'order', order.id, {
+        order_number: order.order_number,
+        status: order.status,
+        payment_status: order.payment_status,
+        total: order.total,
+        items: lines.length,
+      });
+      return {
+        deleted: true,
+        id: order.id,
+        order_number: order.order_number,
+        total: order.total,
+        stock_returned: lines.length,
+      };
+    }],
+
     ['POST', /^\/orders\/(\d+)\/cancel$/, async (m, body, user) => {
       requireUser(user);
       const order = db.orders.find((o) => o.id === Number(m[1]));

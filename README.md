@@ -149,6 +149,14 @@ Everything a manager can do, plus:
   the total rises — a larger order silently marked paid is how the
   difference gets lost.
 - **Activity log** — every staff change, who made it and when.
+- **Delete an order** — admin only, from the order sheet. Not the same as
+  cancelling: cancelling records that an order was called off and leaves it
+  in the books, while deleting says it should never have been counted — a
+  test order, a duplicate — and takes its revenue out of the reports. The
+  order, its items, its history and any delivery go with it. Stock it was
+  holding is put back, unlike cancelling, because a deleted order is no
+  longer there to explain where the jar went. The activity log keeps the
+  order number and total, which is the only trace that survives.
 - **Danger zone** — remove every order, behind the admin's own password. The
   menu, accounts and settings are untouched, and the deletion is logged.
 

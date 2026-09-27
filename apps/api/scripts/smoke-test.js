@@ -987,6 +987,77 @@ async function main() {
     (await call('GET', '/catalog/menu', { token: managerToken }))
       .body.products.find((p) => p.id === coldBrew.id)?.track_stock === 0);
 
+    // ---------------------------------------------- removing one order
+  section('Deleting an order');
+
+  const doomedOrder = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 2, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Test Order',
+      contact_phone: '+639170000012',
+    },
+  });
+  check('a test order exists', doomedOrder.status === 201,
+    JSON.stringify(doomedOrder.body?.error ?? doomedOrder.body?.details));
+  const doomedOrderId = doomedOrder.body.id;
+
+  // Take it all the way to completed, which is the case that had no answer.
+  for (const st of ['confirmed', 'preparing', 'ready', 'completed']) {
+    await call('PATCH', `/orders/${doomedOrderId}/status`, { token: managerToken, body: { status: st } });
+  }
+  const completed = await call('GET', `/orders/${doomedOrderId}`, { token: adminToken });
+  check('and is completed', completed.body?.status === 'completed', completed.body?.status);
+
+  check('a manager cannot delete an order',
+    (await call('DELETE', `/orders/${doomedOrderId}`, { token: managerToken })).status === 403);
+  check('a customer cannot either',
+    (await call('DELETE', `/orders/${doomedOrderId}`, { token: customerToken })).status === 403);
+  check('nor can a stranger',
+    [401, 403].includes((await call('DELETE', `/orders/${doomedOrderId}`)).status));
+  check('it survived the refusals',
+    (await call('GET', `/orders/${doomedOrderId}`, { token: adminToken })).status === 200);
+
+  const removed = await call('DELETE', `/orders/${doomedOrderId}`, { token: adminToken });
+  check('an admin can delete a completed order', removed.status === 200, removed.body?.error);
+  check('it reports what went', removed.body?.order_number === completed.body.order_number,
+    JSON.stringify(removed.body));
+  check('the order is gone',
+    (await call('GET', `/orders/${doomedOrderId}`, { token: adminToken })).status === 404);
+  check('and is off the order list',
+    !(await call('GET', '/orders?limit=200', { token: adminToken }))
+      .body.orders.some((o) => o.id === doomedOrderId));
+  check('deleting it twice is a 404',
+    (await call('DELETE', `/orders/${doomedOrderId}`, { token: adminToken })).status === 404);
+  check('the deletion is in the activity log',
+    ((await call('GET', '/admin/audit?limit=20', { token: adminToken })).body?.entries ?? [])
+      .some((a) => a.action === 'order.delete'),
+    'no order.delete entry');
+
+  // Its money must leave the reports with it.
+  const owedBeforeDelete = (await call('GET', '/admin/stats?days=30', { token: adminToken })).body;
+  const extra = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Counted Then Not',
+      contact_phone: '+639170000013',
+    },
+  });
+  const withExtra = (await call('GET', '/admin/stats?days=30', { token: adminToken })).body;
+  check('a new order is counted', withExtra.period.orders === owedBeforeDelete.period.orders + 1,
+    `${owedBeforeDelete.period.orders} -> ${withExtra.period.orders}`);
+  await call('DELETE', `/orders/${extra.body.id}`, { token: adminToken });
+  const afterDelete = (await call('GET', '/admin/stats?days=30', { token: adminToken })).body;
+  check('and uncounted once deleted',
+    afterDelete.period.orders === owedBeforeDelete.period.orders,
+    `${withExtra.period.orders} -> ${afterDelete.period.orders}`);
+  check('the revenue goes with it',
+    Math.abs(afterDelete.period.revenue - owedBeforeDelete.period.revenue) < 0.01,
+    `${withExtra.period.revenue} -> ${afterDelete.period.revenue}`);
+
     // ------------------------------------------------ the shareable link
   section('Order tracking link');
 
