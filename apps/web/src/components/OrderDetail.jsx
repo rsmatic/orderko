@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, money, dateTime, relativeMinutes } from '../lib/api';
 import { Modal, Alert, StatusBadge, DeliveryBadge, PaymentBadge, Spinner, Loading } from './ui';
 import CopyOrderLink from './CopyOrderLink';
+import EditOrderItems from './EditOrderItems';
 
 const NEXT_LABEL = {
   confirmed:  'Confirm order',
@@ -29,6 +30,19 @@ const TRANSITIONS = {
  * controls, payment, and the Grab booking.
  */
 export default function OrderDetail({ orderId, onClose, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [menu, setMenu] = useState(null);
+
+  // Only needed to add a line, so it is fetched when editing starts rather
+  // than every time an order is opened to be read.
+  useEffect(() => {
+    if (!editing || menu) return undefined;
+    const controller = new AbortController();
+    api.get('/catalog/menu', { signal: controller.signal })
+      .then(setMenu)
+      .catch(() => { /* the list just stays empty; quantities still work */ });
+    return () => controller.abort();
+  }, [editing, menu]);
   const [order, setOrder] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -182,8 +196,30 @@ export default function OrderDetail({ orderId, onClose, onChanged }) {
       </section>
 
       <section className="panel">
-        <div className="panel-head"><h3>Items</h3></div>
+        <div className="panel-head">
+          <h3>Items</h3>
+          {/* Settled orders are a record, not a working document. */}
+          {!editing && !['completed', 'cancelled'].includes(order.status) ? (
+            <button type="button" className="btn btn-sm" onClick={() => setEditing(true)}>
+              Edit items
+            </button>
+          ) : null}
+        </div>
         <div className="panel-body stack">
+          {editing ? (
+            <EditOrderItems
+              order={order}
+              menu={menu}
+              onCancel={() => setEditing(false)}
+              onError={setError}
+              onSaved={(updated) => {
+                setOrder(updated);
+                setEditing(false);
+                onChanged?.();
+              }}
+            />
+          ) : (
+          <>
           {order.items.map((item) => (
             <div key={item.id} className="stack-s" style={{ paddingBottom: '.7rem', borderBottom: '1px solid var(--oat-deep)' }}>
               <div className="spread">
@@ -210,6 +246,9 @@ export default function OrderDetail({ orderId, onClose, onChanged }) {
               ) : null}
             </div>
           ))}
+
+          </>
+          )}
 
           <div className="totals">
             <div className="totals-row"><span className="muted">Subtotal</span><span className="mono">{money(order.subtotal, order.currency)}</span></div>

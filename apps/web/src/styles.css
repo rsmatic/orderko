@@ -790,3 +790,21 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .stat-action, .stat-more { transition: none; }
   .stat-action:active { transform: none; }
 }
+
+/* ------------------------------------------------------- editing an order */
+
+.edit-line {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .6rem .7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+}
+.edit-line .qty { display: flex; align-items: center; gap: .5rem; flex: none; }
+.edit-line .qty .mono { min-width: 1.5rem; text-align: center; }
+
+@media (max-width: 520px) {
+  /* The name, the stepper and Remove stop fitting on one line. */
+  .edit-line { flex-wrap: wrap; }
+  .edit-line .grow { flex-basis: 100%; }
+}

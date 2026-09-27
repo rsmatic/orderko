@@ -821,7 +821,173 @@ async function main() {
   check('a customer cannot read the shop-wide stats',
     (await call('GET', '/admin/stats?days=30', { token: customerToken })).status === 403);
 
-  // ------------------------------------------------ the shareable link
+  // --------------------------------------------- changing a placed order
+  section('Editing an order');
+
+  const placedForEdit = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Changed Their Order',
+      contact_phone: '+639170000010',
+    },
+  });
+  check('an order to edit exists', placedForEdit.status === 201,
+    JSON.stringify(placedForEdit.body?.error ?? placedForEdit.body?.details));
+  const editId = placedForEdit.body.id;
+  const oneJar = Number(placedForEdit.body.total);
+
+  check('a customer cannot edit an order',
+    (await call('PUT', `/orders/${editId}/items`, {
+      token: customerToken,
+      body: { items: [{ product_id: byo.id, quantity: 9, option_ids: threeFruits }] },
+    })).status === 403);
+  check('nor can a stranger',
+    [401, 403].includes((await call('PUT', `/orders/${editId}/items`, {
+      body: { items: [{ product_id: byo.id, quantity: 9, option_ids: threeFruits }] },
+    })).status));
+
+  const doubled = await call('PUT', `/orders/${editId}/items`, {
+    token: managerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 2, option_ids: threeFruits }],
+      reason: 'customer rang to add a jar',
+    },
+  });
+  check('a manager can edit an order', doubled.status === 200, doubled.body?.error);
+  check('the quantity changed', doubled.body?.items?.[0]?.quantity === 2,
+    String(doubled.body?.items?.[0]?.quantity));
+  check('and it is re-priced by the server',
+    Number(doubled.body?.subtotal) > Number(placedForEdit.body.subtotal),
+    `${placedForEdit.body.subtotal} -> ${doubled.body?.subtotal}`);
+  check('the total follows', Number(doubled.body?.total) > oneJar,
+    `${oneJar} -> ${doubled.body?.total}`);
+  check('the change is on the order history',
+    (doubled.body?.history ?? []).some((h) => (h.note ?? '').includes('Items edited')),
+    JSON.stringify((doubled.body?.history ?? []).map((h) => h.note)));
+  check('with the reason given',
+    (doubled.body?.history ?? []).some((h) => (h.note ?? '').includes('rang to add a jar')));
+
+  // A price sent by the browser must count for nothing.
+  const liar = await call('PUT', `/orders/${editId}/items`, {
+    token: managerToken,
+    body: {
+      items: [{ product_id: byo.id, quantity: 2, option_ids: threeFruits, line_total: 1, unit_base_price: 1 }],
+      total: 1, subtotal: 1,
+    },
+  });
+  check('a total sent by the client is ignored', Number(liar.body?.total) === Number(doubled.body.total),
+    `${liar.body?.total} vs ${doubled.body.total}`);
+
+  const nonsense = await call('PUT', `/orders/${editId}/items`, {
+    token: managerToken,
+    body: { items: [{ product_id: 999999, quantity: 1, option_ids: [] }] },
+  });
+  check('an item that does not exist is refused', nonsense.status === 400, `got ${nonsense.status}`);
+  check('and the order was left alone',
+    Number((await call('GET', `/orders/${editId}`, { token: managerToken })).body?.total)
+      === Number(doubled.body.total));
+
+  const empty = await call('PUT', `/orders/${editId}/items`, {
+    token: managerToken, body: { items: [] },
+  });
+  check('an order cannot be emptied', empty.status === 400, `got ${empty.status}`);
+
+  // Money already taken must not quietly cover a bigger order.
+  await call('PATCH', `/orders/${editId}/payment`, {
+    token: adminToken, body: { payment_status: 'paid' },
+  });
+  const grown = await call('PUT', `/orders/${editId}/items`, {
+    token: managerToken,
+    body: { items: [{ product_id: byo.id, quantity: 4, option_ids: threeFruits }] },
+  });
+  check('a paid order that grows goes back to unpaid',
+    grown.body?.payment_status === 'unpaid', String(grown.body?.payment_status));
+  check('and says why', (grown.body?.history ?? []).some((h) => (h.note ?? '').includes('total went up')));
+
+  // A smaller order does not: that is a refund, not an amount outstanding.
+  await call('PATCH', `/orders/${editId}/payment`, {
+    token: adminToken, body: { payment_status: 'paid' },
+  });
+  const shrunk = await call('PUT', `/orders/${editId}/items`, {
+    token: managerToken,
+    body: { items: [{ product_id: byo.id, quantity: 1, option_ids: threeFruits }] },
+  });
+  check('a paid order that shrinks stays paid', shrunk.body?.payment_status === 'paid',
+    String(shrunk.body?.payment_status));
+
+  // Settled orders are a record.
+  await call('PATCH', `/orders/${editId}/status`, { token: managerToken, body: { status: 'confirmed' } });
+  await call('PATCH', `/orders/${editId}/status`, { token: managerToken, body: { status: 'preparing' } });
+  await call('PATCH', `/orders/${editId}/status`, { token: managerToken, body: { status: 'ready' } });
+  await call('PATCH', `/orders/${editId}/status`, { token: managerToken, body: { status: 'completed' } });
+  check('a completed order cannot be edited',
+    (await call('PUT', `/orders/${editId}/items`, {
+      token: managerToken,
+      body: { items: [{ product_id: byo.id, quantity: 2, option_ids: threeFruits }] },
+    })).status === 400);
+
+    // Stock is deducted at checkout, so an edit has to give the old contents
+  // back before taking the new — or the shop appears to have sold twice.
+  section('Editing an order moves stock');
+
+  const stockQty = async () => Number(
+    (await call('GET', '/catalog/menu', { token: managerToken }))
+      .body.products.find((p) => p.id === coldBrew.id)?.stock_qty,
+  );
+
+  const tracked = await call('PATCH', `/catalog/products/${coldBrew.id}`, {
+    token: managerToken, body: { track_stock: true, stock_qty: 100 },
+  });
+  check('a product can be put on stock control', tracked.status === 200, tracked.body?.error);
+  check('it starts at 100', (await stockQty()) === 100, String(await stockQty()));
+
+  const tookThree = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: coldBrew.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Stock Tester',
+      contact_phone: '+639170000011',
+    },
+  });
+  check('an order of 3 is placed', tookThree.status === 201,
+    JSON.stringify(tookThree.body?.error ?? tookThree.body?.details));
+  check('stock fell to 97', (await stockQty()) === 97, String(await stockQty()));
+
+  await call('PUT', `/orders/${tookThree.body.id}/items`, {
+    token: managerToken,
+    body: { items: [{ product_id: coldBrew.id, quantity: 5, option_ids: [] }] },
+  });
+  check('raising it to 5 leaves 95, not 92',
+    (await stockQty()) === 95, `got ${await stockQty()}`);
+
+  await call('PUT', `/orders/${tookThree.body.id}/items`, {
+    token: managerToken,
+    body: { items: [{ product_id: coldBrew.id, quantity: 1, option_ids: [] }] },
+  });
+  check('lowering it to 1 gives the rest back', (await stockQty()) === 99,
+    `got ${await stockQty()}`);
+
+  // A rejected edit must not quietly keep the stock it released.
+  const overStock = await call('PUT', `/orders/${tookThree.body.id}/items`, {
+    token: managerToken,
+    body: { items: [{ product_id: coldBrew.id, quantity: 500, option_ids: [] }] },
+  });
+  check('an edit beyond stock is refused', overStock.status === 400, `got ${overStock.status}`);
+  check('and the reservation is put back', (await stockQty()) === 99,
+    `got ${await stockQty()}`);
+
+  // Leave the product as the suite found it.
+  await call('PATCH', `/catalog/products/${coldBrew.id}`, {
+    token: managerToken, body: { track_stock: false, stock_qty: 0 },
+  });
+  check('stock control can be switched off again',
+    (await call('GET', '/catalog/menu', { token: managerToken }))
+      .body.products.find((p) => p.id === coldBrew.id)?.track_stock === 0);
+
+    // ------------------------------------------------ the shareable link
   section('Order tracking link');
 
   const share = await call('POST', `/orders/${orderId}/share`, { token: managerToken });

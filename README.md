@@ -137,6 +137,17 @@ Everything a manager can do, plus:
   owed because it is older than thirty days. Cancelled orders are not debts.
   Open it to see who owes what and how long they have owed it, and pick a row
   to go straight to the order and mark it paid.
+- **Edit items** — on any order that is not completed or cancelled, for both
+  managers and admins. The customer rings to add a jar or drop the walnuts
+  and the order follows. Only the contents are sent; every price is worked
+  out on the server from the menu, exactly as at checkout, so a total from
+  the browser counts for nothing. The delivery fee is left as quoted, since
+  the distance has not changed. Stock is returned before the new contents
+  are priced, or a jar counted against the old order would be counted again
+  against the new one. The change goes on the order history with the before
+  and after totals, and an order already marked paid goes back to unpaid if
+  the total rises — a larger order silently marked paid is how the
+  difference gets lost.
 - **Activity log** — every staff change, who made it and when.
 - **Danger zone** — remove every order, behind the admin's own password. The
   menu, accounts and settings are untouched, and the deletion is logged.

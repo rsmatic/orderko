@@ -463,6 +463,32 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   };
 
+  /**
+   * Puts stock back, or takes it away again.
+   *
+   * Checkout deducts on the way in, so an order being rewritten has to return
+   * what it was holding before the new contents are priced — otherwise a jar
+   * already counted against the old order is counted a second time against the
+   * new one and the shop appears to have sold twice what it did.
+   */
+  function moveStock(items, sign) {
+    for (const item of items) {
+      const product = db.products.find((p) => p.id === item.product_id);
+      if (product?.track_stock) {
+        product.stock_qty = Math.max(0, product.stock_qty + sign * item.quantity);
+      }
+      for (const o of item.options ?? []) {
+        const opt = db.options.find((x) => x.id === o.option_id);
+        if (opt?.track_stock) opt.stock_qty = Math.max(0, opt.stock_qty + sign * item.quantity);
+      }
+    }
+  }
+
+  /** The lines of an order, with their options, in the shape priceCart returns. */
+  const linesOf = (orderId) => db.orderItems
+    .filter((i) => i.order_id === orderId)
+    .map((i) => ({ ...i, options: db.orderItemOptions.filter((o) => o.order_item_id === i.id) }));
+
   const orderNumberFor = (id) => `OK-${String(240000 + id).padStart(6, '0')}`;
 
   /**
@@ -1033,6 +1059,99 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       order.status = body.status;
       order.cancelled_reason = body.status === 'cancelled' ? body.reason ?? null : null;
       audit(user, 'order.status', 'order', order.id, { from: allowed, to: body.status });
+      return loadOrder(order.id);
+    }],
+
+    /**
+     * Rewrites what an order contains.
+     *
+     * The shop takes a call — one more jar, no walnuts after all — and the
+     * order has to follow. Only the contents are given; every price is worked
+     * out here from the menu, exactly as it is at checkout, because a till
+     * that accepts a total from the browser is not a till.
+     *
+     * The delivery fee is left alone: it was quoted for a distance, and the
+     * distance has not changed.
+     */
+    ['PUT', /^\/orders\/(\d+)\/items$/, async (m, body, user) => {
+      requireRole(user, 'admin', 'manager');
+      const order = db.orders.find((o) => o.id === Number(m[1]));
+      if (!order) throw notFound('Order not found');
+      if (order.status === 'cancelled') throw bad('A cancelled order cannot be edited');
+      if (order.status === 'completed') {
+        throw bad('This order is already completed — edit it before handing it over');
+      }
+
+      const before = linesOf(order.id);
+      const previousTotal = order.total;
+
+      // Give back what the old contents were holding, so the new contents are
+      // checked against stock the shop actually has.
+      moveStock(before, +1);
+
+      let priced;
+      try {
+        priced = priceCart(db, body.items);
+      } catch (err) {
+        moveStock(before, -1);   // nothing changed; put the reservation back
+        throw err;
+      }
+
+      const oldItemIds = new Set(before.map((i) => i.id));
+      db.orderItemOptions = db.orderItemOptions.filter((o) => !oldItemIds.has(o.order_item_id));
+      db.orderItems = db.orderItems.filter((i) => i.order_id !== order.id);
+
+      for (const item of priced.items) {
+        const itemId = nextId('item');
+        db.orderItems.push({
+          id: itemId,
+          order_id: order.id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_base_price: item.unit_base_price,
+          unit_options_price: item.unit_options_price,
+          line_total: item.line_total,
+          notes: item.notes,
+        });
+        for (const o of item.options) {
+          db.orderItemOptions.push({ id: nextId('optRow'), order_item_id: itemId, ...o });
+        }
+      }
+      moveStock(priced.items, -1);
+
+      const totals = totalsFor({
+        subtotal: priced.subtotal,
+        deliveryFee: order.delivery_fee,
+        taxRate: db.settings.tax_rate,
+      });
+      Object.assign(order, totals);
+
+      const money = (n) => `${db.settings.currency} ${Number(n).toFixed(2)}`;
+      let note = `Items edited: ${money(previousTotal)} → ${money(order.total)}`;
+      if (body.reason) note += ` (${String(body.reason).slice(0, 120)})`;
+
+      // Money already collected no longer covers the order. Saying so is the
+      // whole point of the unpaid list; a larger order silently marked paid is
+      // how a shop loses the difference.
+      if (order.payment_status === 'paid' && order.total > previousTotal) {
+        order.payment_status = 'unpaid';
+        note += ' — marked unpaid, the total went up';
+      }
+
+      db.history.push({
+        order_id: order.id,
+        from_status: order.status,
+        to_status: order.status,
+        changed_by: user.id,
+        note,
+        created_at: nowIso(),
+      });
+      audit(user, 'order.items', 'order', order.id, {
+        from_total: previousTotal,
+        to_total: order.total,
+        lines: priced.items.length,
+      });
       return loadOrder(order.id);
     }],
 
