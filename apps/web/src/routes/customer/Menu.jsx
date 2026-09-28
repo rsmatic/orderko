@@ -11,6 +11,11 @@ export default function Menu() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState('');
+  // Every hook has to run on every render, so this belongs up here with the
+  // rest and not beside the handler that uses it — below the early returns it
+  // was skipped while the menu was still loading, and React throws when the
+  // count changes on the next render.
+  const [clash, setClash] = useState(null);
   const cart = useCart();
   const { shop } = useShop();
 
@@ -48,8 +53,6 @@ export default function Menu() {
   // Whatever has choices to make is the most interesting thing to open; a
   // shop selling only ready-made items just gets its first product.
   const heroProduct = menu.products.find((p) => p.option_groups?.length) ?? menu.products[0];
-
-  const [clash, setClash] = useState(null);
 
   function handleAdd(line) {
     // A basket that already belongs to someone else cannot take this. Better
