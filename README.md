@@ -113,7 +113,7 @@ Everything a manager can do, plus:
   can mix sellers. An order that mixes them belongs to no single seller, so
   it stays with the admins — otherwise nobody would see it and nobody would
   make it. Reports scope the same way, and an admin gets a per-seller
-  breakdown plus  to look at one at a time. Which seller earned
+  breakdown plus `?owner=<id>` to look at one at a time. Which seller earned
   a line is snapshotted onto the order item, so reassigning a product later
   does not rewrite who earned what last month. Option groups and categories
   stay with admins, since they are shared and one seller editing them would
