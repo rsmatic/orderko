@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, money, dateTime } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Empty, Modal, Field, Spinner } from '../../components/ui';
@@ -234,6 +234,10 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
   // Where they are collected from and who pays them only exists once the
   // account does, so a brand new one has the account tab alone.
   const [tab, setTab] = useState('account');
+  // The seller panel hands its save up so the dialog has one Save button
+  // whichever tab is showing, rather than one below the fold.
+  const sellerControls = useRef(null);
+  const [, forceFooter] = useState(0);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   async function save() {
@@ -279,7 +283,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
       title={isNew ? 'New account' : form.name}
       subtitle={isNew ? 'Give someone access' : user.email}
       onClose={onClose}
-      width="520px"
+      width={tab === 'selling' ? '620px' : '520px'}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>Close</button>
@@ -287,7 +291,19 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
             <button type="button" className="btn btn-primary" disabled={busy || !valid} onClick={save}>
               {busy ? <Spinner /> : 'Save'}
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={sellerControls.current?.busy}
+              onClick={async () => {
+                await sellerControls.current?.save?.();
+                forceFooter((n) => n + 1);
+              }}
+            >
+              {sellerControls.current?.busy ? <Spinner /> : 'Save seller details'}
+            </button>
+          )}
         </>
       }
     >
@@ -307,7 +323,12 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
       ) : null}
 
       {tab === 'selling' && !isNew ? (
-        <SellerProfile userId={user.id} onSaved={onSaved} onError={onError} />
+        <SellerProfile
+          userId={user.id}
+          onSaved={onSaved}
+          onError={onError}
+          controls={sellerControls}
+        />
       ) : (
       <>
       <Field label="Name">

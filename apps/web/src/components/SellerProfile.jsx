@@ -14,7 +14,7 @@ import ImagePicker from './ImagePicker';
  * — writing the shop's values into the row would freeze them, and changing the
  * shop later would stop reaching this seller.
  */
-export default function SellerProfile({ userId, onSaved, onError }) {
+export default function SellerProfile({ userId, onSaved, onError, controls }) {
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -30,6 +30,13 @@ export default function SellerProfile({ userId, onSaved, onError }) {
       .catch((err) => { if (err.name !== 'AbortError') onError(err.message); });
     return () => controller.abort();
   }, [userId, onError]);
+
+  // The dialog frames this panel and owns the footer, so the Save button
+  // lives there with the one for the other tab. Two Saves in two places, one
+  // of them below the fold, is how a filled-in form gets closed and lost.
+  useEffect(() => {
+    if (controls) controls.current = { save, busy, ready: Boolean(form) };
+  });
 
   if (!form) return <Loading label="Reading their details…" />;
 
@@ -171,11 +178,7 @@ export default function SellerProfile({ userId, onSaved, onError }) {
         </div>
       </section>
 
-      <div className="row-wrap">
-        <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>
-          {busy ? <Spinner /> : 'Save seller details'}
-        </button>
-      </div>
+
     </div>
   );
 }
