@@ -659,6 +659,36 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     .filter((i) => i.order_id === orderId)
     .map((i) => ({ ...i, options: db.orderItemOptions.filter((o) => o.order_item_id === i.id) }));
 
+  /**
+   * A picture has to be one, and nothing checked that for products.
+   *
+   * The usual mistake is pasting the address bar from a Google Images search
+   * rather than the image itself — a search page is HTML, so the browser
+   * fetches it happily and shows nothing at all. Saying so at the moment it is
+   * pasted is the only place anyone will understand the message.
+   */
+  function cleanImageUrl(raw, what = 'That picture') {
+    const value = String(raw ?? '').trim();
+    if (!value) return '';
+    if (value.length > MAX_IMAGE_CHARS) {
+      throw bad(
+        `${what} is too large (${Math.round(value.length / 1024)} KB). `
+          + `Keep it under ${Math.round(MAX_IMAGE_CHARS / 1024)} KB.`,
+      );
+    }
+    if (!/^(https?:\/\/|data:image\/)/.test(value)) {
+      throw bad('An image must be an https:// address or an uploaded picture');
+    }
+    if (/^https?:\/\/(www\.)?(google|bing|duckduckgo|yandex)\.[a-z.]+\/(search|images)/i.test(value)) {
+      throw bad(
+        'That is a link to a search results page, not to a picture. Open the '
+          + 'image itself, right-click it and choose "Copy image address" — or '
+          + 'upload the picture here instead.',
+      );
+    }
+    return value;
+  }
+
   const orderNumberFor = (id) => `OK-${String(240000 + id).padStart(6, '0')}`;
 
   /**
@@ -802,7 +832,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         slug: body.slug || slugify(body.name),
         description: body.description ?? null,
         base_price: Number(body.base_price),
-        image_url: body.image_url || null,
+        image_url: cleanImageUrl(body.image_url) || null,
         is_active: body.is_active === false ? 0 : 1,
         track_stock: body.track_stock ? 1 : 0,
         stock_qty: Number(body.stock_qty ?? 0),
@@ -832,7 +862,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       for (const k of ['category_id', 'name', 'description', 'base_price', 'sort_order', 'stock_qty']) {
         if (body[k] !== undefined) p[k] = body[k];
       }
-      if (body.image_url !== undefined) p.image_url = body.image_url || null;
+      if (body.image_url !== undefined) p.image_url = cleanImageUrl(body.image_url) || null;
       if (body.is_active !== undefined) p.is_active = body.is_active ? 1 : 0;
       if (body.track_stock !== undefined) p.track_stock = body.track_stock ? 1 : 0;
       if (body.option_group_ids) setProductGroups(p.id, body.option_group_ids);
@@ -884,7 +914,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       for (const k of ['group_id', 'name', 'description', 'price_delta', 'sort_order', 'stock_qty']) {
         if (body[k] !== undefined) o[k] = body[k];
       }
-      if (body.image_url !== undefined) o.image_url = body.image_url || null;
+      if (body.image_url !== undefined) o.image_url = cleanImageUrl(body.image_url) || null;
       if (body.is_available !== undefined) o.is_available = body.is_available ? 1 : 0;
       if (body.track_stock !== undefined) o.track_stock = body.track_stock ? 1 : 0;
       audit(user, 'option.update', 'option', o.id, body);

@@ -4,6 +4,7 @@ import { api, money } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Modal, Field, Spinner, Empty } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import ImagePicker from '../../components/ImagePicker';
 
 const emptyProduct = (categories) => ({
   category_id: categories[0]?.id ?? 1,
@@ -433,8 +434,12 @@ function ProductEditor({ product, menu, canDelete, onClose, onSaved, onError }) 
         <textarea className="textarea" value={form.description} onChange={(e) => set({ description: e.target.value })} />
       </Field>
 
-      <Field label="Image URL" hint="Leave blank for a plain tile.">
-        <input className="input" value={form.image_url} onChange={(e) => set({ image_url: e.target.value })} />
+      <Field label="Picture" hint="Leave blank for a plain tile.">
+        <ImagePicker
+          value={form.image_url}
+          onChange={(v) => set({ image_url: v ?? '' })}
+          hint="Upload a photo, or use a link to the image itself — not to a search results page."
+        />
       </Field>
 
       <Field label="Choices this item offers" hint="Which option groups the customer sees.">

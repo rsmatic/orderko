@@ -102,6 +102,56 @@ async function main() {
   check('anonymous cannot read the kitchen queue', anonAtQueue.status === 401, `got ${anonAtQueue.status}`);
 
   // -------------------------------------------------------------- catalog
+  section('Product pictures');
+
+  // Pasting the address bar from a Google Images search is the usual mistake,
+  // and it renders nothing: the browser fetches an HTML page into an img tag.
+  const searchLink = await call('POST', '/catalog/products', {
+    token: managerToken,
+    body: {
+      name: 'Picture Test', category_id: 1, base_price: 80,
+      image_url: 'https://www.google.com/search?q=suman+sa+lihiya&tbm=isch',
+    },
+  });
+  check('a search link is refused as a picture', searchLink.status === 400,
+    `got ${searchLink.status}`);
+  check('and the refusal says how to get the real one',
+    /copy image address|search results/i.test(searchLink.body?.error ?? ''),
+    searchLink.body?.error);
+
+  const notAUrl = await call('POST', '/catalog/products', {
+    token: managerToken,
+    body: { name: 'Picture Test', category_id: 1, base_price: 80, image_url: 'suman.jpg' },
+  });
+  check('a bare filename is refused', notAUrl.status === 400, `got ${notAUrl.status}`);
+
+  const realImage = await call('POST', '/catalog/products', {
+    token: managerToken,
+    body: {
+      name: `Picture Test ${Date.now()}`, category_id: 1, base_price: 80,
+      image_url: 'https://images.unsplash.com/photo-1517093157656-b9eccef91cb1?w=800',
+    },
+  });
+  check('a real image address is accepted', realImage.status === 201, realImage.body?.error);
+
+  check('an uploaded picture is accepted too',
+    (await call('PATCH', `/catalog/products/${realImage.body.id}`, {
+      token: managerToken, body: { image_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' },
+    })).status === 200);
+
+  check('an oversized upload is refused',
+    (await call('PATCH', `/catalog/products/${realImage.body.id}`, {
+      token: managerToken,
+      body: { image_url: 'data:image/png;base64,' + 'A'.repeat(500_000) },
+    })).status === 400);
+
+  check('and a picture can be cleared',
+    (await call('PATCH', `/catalog/products/${realImage.body.id}`, {
+      token: managerToken, body: { image_url: '' },
+    })).status === 200);
+
+  await call('DELETE', `/catalog/products/${realImage.body.id}`, { token: adminToken });
+
   section('Menu');
   const menu = await call('GET', '/catalog/menu');
   check('menu loads', menu.status === 200);
