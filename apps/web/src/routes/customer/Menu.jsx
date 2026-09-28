@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, money } from '../../lib/api';
 import { useCart } from '../../context/CartContext';
-import { Loading, Empty, Alert } from '../../components/ui';
+import { Loading, Empty, Alert, Modal } from '../../components/ui';
 import Customizer from './Customizer';
 import { useShop } from '../../context/ShopContext';
 
@@ -39,11 +39,26 @@ export default function Menu() {
   if (error) return <div className="container" style={{ padding: '2rem 0' }}><Alert kind="error">{error}</Alert></div>;
   if (!menu) return <Loading label="Bringing out the menu…" />;
 
+  // The menu carries an owner per product; the name comes from the seller
+  // listing the API sends with it, falling back to the shop's own name.
+  const sellerNameOf = (ownerId) =>
+    (menu.sellers ?? []).find((x) => x.id === ownerId)?.name
+      ?? menu.settings.shop_name;
+
   // Whatever has choices to make is the most interesting thing to open; a
   // shop selling only ready-made items just gets its first product.
   const heroProduct = menu.products.find((p) => p.option_groups?.length) ?? menu.products[0];
 
+  const [clash, setClash] = useState(null);
+
   function handleAdd(line) {
+    // A basket that already belongs to someone else cannot take this. Better
+    // to say so here than to let checkout refuse the whole order.
+    if (!cart.acceptsFrom(line.owner_id ?? null)) {
+      setClash(line);
+      setEditing(null);
+      return;
+    }
     cart.add(line);
     setEditing(null);
     setToast(`${line.quantity}× ${line.product_name} added`);
@@ -147,11 +162,56 @@ export default function Menu() {
         )}
       </div>
 
+      {clash ? (
+        <Modal
+          title="Start a second order?"
+          subtitle={`Your basket is from ${cart.sellerName ?? 'another seller'}`}
+          onClose={() => setClash(null)}
+          width="420px"
+          footer={
+            <>
+              <button type="button" className="btn" onClick={() => setClash(null)}>
+                Keep my basket
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  // They chose the new seller, so the old basket goes. Nothing
+                  // is lost quietly — this is the only way it empties.
+                  cart.clear();
+                  cart.add(clash);
+                  setToast(`Basket emptied · ${clash.quantity}× ${clash.product_name} added`);
+                  setClash(null);
+                }}
+              >
+                Empty it and add this
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0 }}>
+            <strong>{clash.product_name}</strong> is sold by{' '}
+            <strong>{clash.seller_name}</strong>, and one order can only hold
+            one seller's items — they are collected from different places and
+            paid to different people.
+          </p>
+          <p className="small muted" style={{ marginBottom: 0 }}>
+            Finish this order first and then start another, or empty the basket
+            and begin again with {clash.seller_name}.
+          </p>
+        </Modal>
+      ) : null}
+
       {editing ? (
         <Customizer
           product={editing}
           onClose={() => setEditing(null)}
-          onAdd={handleAdd}
+          onAdd={(line) => handleAdd({
+            ...line,
+            owner_id: editing.owner_id ?? null,
+            seller_name: sellerNameOf(editing.owner_id ?? null),
+          })}
         />
       ) : null}
 

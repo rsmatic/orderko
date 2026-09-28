@@ -14,15 +14,20 @@ import { useShop } from '../context/ShopContext';
  * Renders nothing when no number is configured, which is also what stops
  * GCash being offered at checkout in the first place.
  */
-export default function GcashPanel({ amount, currency, children }) {
+export default function GcashPanel({ amount, currency, seller, children }) {
   const { shop } = useShop();
   const [copied, setCopied] = useState(false);
 
-  const number = String(shop?.gcash_number ?? '').trim();
+  // Several sellers can share one storefront, and the money goes to whoever
+  // made the food. Without a seller this is the shop being paid.
+  const payee = seller ?? shop;
+
+  const number = String(payee?.gcash_number ?? '').trim();
   if (!number) return null;
 
-  const accountName = String(shop?.gcash_name ?? '').trim() || shop?.shop_name;
-  const qr = String(shop?.gcash_qr_url ?? '').trim();
+  const accountName = String(payee?.gcash_name ?? '').trim()
+    || payee?.name || shop?.shop_name;
+  const qr = String(payee?.gcash_qr_url ?? '').trim();
 
   async function copy() {
     try {

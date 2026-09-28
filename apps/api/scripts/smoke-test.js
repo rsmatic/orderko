@@ -1075,6 +1075,8 @@ async function main() {
     pureSuman.status === 201 && pureCrinkle.status === 201,
     JSON.stringify([pureSuman.body?.error, pureCrinkle.body?.error]));
 
+  // One seller per basket: an order has one place to collect from and one
+  // person to pay, so the two cannot be mixed.
   const mixed = await call('POST', '/orders', {
     token: customerToken,
     body: {
@@ -1085,25 +1087,30 @@ async function main() {
       fulfillment_type: 'pickup', contact_name: 'Bought Both', contact_phone: '+639170000022',
     },
   });
-  check('a customer can still buy from both at once', mixed.status === 201,
-    JSON.stringify(mixed.body?.error ?? mixed.body?.details));
+  check('a basket cannot mix two sellers', mixed.status === 400, `got ${mixed.status}`);
+  check('and the refusal says what to do',
+    /one seller/i.test(mixed.body?.error ?? ''), mixed.body?.error);
+  check('the quote refuses it too, before anyone reaches checkout',
+    (await call('POST', '/orders/quote', {
+      body: {
+        items: [
+          { product_id: sumanProduct.body.id, quantity: 2, option_ids: [] },
+          { product_id: crinkleProduct.body.id, quantity: 2, option_ids: [] },
+        ],
+        fulfillment_type: 'pickup',
+      },
+    })).status === 400);
 
   check('a seller can open their own order',
     (await call('GET', `/orders/${pureSuman.body.id}`, { token: sumanToken })).status === 200);
   check('but not the other seller\'s',
     (await call('GET', `/orders/${pureCrinkle.body.id}`, { token: sumanToken })).status === 403);
-  check('and not a mixed one',
-    (await call('GET', `/orders/${mixed.body.id}`, { token: sumanToken })).status === 403);
-  check('an admin can open the mixed one',
-    (await call('GET', `/orders/${mixed.body.id}`, { token: adminToken })).status === 200);
 
   const listFor = async (token) =>
     (await call('GET', '/orders?limit=200', { token })).body.orders.map((o) => o.id);
   const sumanList = await listFor(sumanToken);
   check('the order list shows only their own',
-    sumanList.includes(pureSuman.body.id)
-      && !sumanList.includes(pureCrinkle.body.id)
-      && !sumanList.includes(mixed.body.id),
+    sumanList.includes(pureSuman.body.id) && !sumanList.includes(pureCrinkle.body.id),
     JSON.stringify(sumanList));
 
   const sumanQueue = (await call('GET', '/orders/queue', { token: sumanToken })).body.orders.map((o) => o.id);
@@ -1124,17 +1131,110 @@ async function main() {
   check('an admin gets a breakdown per seller',
     (adminStats.by_owner ?? []).some((r) => r.owner_id === suman.id),
     JSON.stringify((adminStats.by_owner ?? []).map((r) => r.owner_name)));
-  check('including a row for the mixed ones',
+  check('with a row for the shop\'s own unassigned products',
     (adminStats.by_owner ?? []).some((r) => r.owner_id === null),
-    'no row for mixed or unassigned');
+    JSON.stringify((adminStats.by_owner ?? []).map((r) => r.owner_name)));
 
   const scoped = (await call('GET', `/admin/stats?days=30&owner=${suman.id}`, { token: adminToken })).body;
   check('and can look at one seller at a time',
     scoped.period.orders === sumanStats.period.orders,
     `${scoped.period.orders} vs ${sumanStats.period.orders}`);
 
+  // ------------------------------------- each seller's own money and place
+  const shopProfile = (await call('GET', '/sellers/shop/profile')).body;
+  const beforeSet = (await call('GET', `/sellers/${suman.id}/profile`)).body;
+  check('a seller starts on the shop\'s details',
+    beforeSet.pickup_address === shopProfile.pickup_address,
+    `${beforeSet.pickup_address} vs ${shopProfile.pickup_address}`);
+
+  const mine = await call('PUT', `/sellers/${suman.id}/profile`, {
+    token: sumanToken,
+    body: {
+      display_name: 'Suman ni Aling Nena',
+      pickup_address: '21 Mabini Street, Carmona, Cavite',
+      pickup_lat: 14.3133, pickup_lng: 121.0577,
+      gcash_number: '0917 111 2222',
+      own_delivery_fee: 40,
+    },
+  });
+  check('a seller can set their own details', mine.status === 200, mine.body?.error);
+  check('and they take effect', mine.body?.pickup_address === '21 Mabini Street, Carmona, Cavite');
+  check('with their own GCash', mine.body?.gcash_number === '0917 111 2222');
+
+  check('a seller cannot set another seller\'s',
+    (await call('PUT', `/sellers/${crinkle.id}/profile`, {
+      token: sumanToken, body: { gcash_number: '0917 999 9999' },
+    })).status === 403);
+  check('an admin can set anyone\'s',
+    (await call('PUT', `/sellers/${crinkle.id}/profile`, {
+      token: adminToken, body: { display_name: 'Crinkles Co' },
+    })).status === 200);
+  check('a nonsense GCash number is refused',
+    (await call('PUT', `/sellers/${suman.id}/profile`, {
+      token: sumanToken, body: { gcash_number: 'not a number' },
+    })).status === 400);
+
+  // What the customer is actually told, which is the point of all of it.
+  const sumanQuote = await call('POST', '/orders/quote', {
+    body: {
+      items: [{ product_id: sumanProduct.body.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'pickup',
+    },
+  });
+  check('the quote collects from the seller, not the shop',
+    sumanQuote.body?.pickup_address === '21 Mabini Street, Carmona, Cavite',
+    sumanQuote.body?.pickup_address);
+  check('and names who is being paid',
+    sumanQuote.body?.seller?.gcash_number === '0917 111 2222',
+    JSON.stringify(sumanQuote.body?.seller));
+
+  const crinkleQuote = await call('POST', '/orders/quote', {
+    body: {
+      items: [{ product_id: crinkleProduct.body.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'pickup',
+    },
+  });
+  check('a different seller gets a different answer',
+    crinkleQuote.body?.pickup_address !== sumanQuote.body?.pickup_address,
+    `both say ${crinkleQuote.body?.pickup_address}`);
+  check('and one still on the shop\'s falls back to it',
+    crinkleQuote.body?.pickup_address === shopProfile.pickup_address);
+
+  // Their own delivery rate, not the shop's.
+  await call('PUT', '/admin/settings', {
+    token: adminToken,
+    body: { delivery_enabled: true, grab_delivery_enabled: false, own_delivery_enabled: true },
+  });
+  const sumanFee = await call('POST', '/orders/quote', {
+    body: {
+      items: [{ product_id: sumanProduct.body.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'delivery', delivery_carrier: 'own',
+      delivery_lat: 14.3200, delivery_lng: 121.0600,
+    },
+  });
+  check('delivery is charged at the seller\'s rate',
+    Number(sumanFee.body?.delivery_fee) === 40,
+    `got ${sumanFee.body?.delivery_fee}`);
+  await call('PUT', '/admin/settings', {
+    token: adminToken, body: { grab_delivery_enabled: true, own_delivery_enabled: false },
+  });
+
+  // A placed order remembers whose it was.
+  const sumanOrder = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: sumanProduct.body.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'pickup', contact_name: 'Suman Buyer', contact_phone: '+639170000023',
+    },
+  });
+  check('an order carries its seller', sumanOrder.body?.seller?.id === suman.id,
+    JSON.stringify(sumanOrder.body?.seller));
+  check('so the order page can say where to collect',
+    sumanOrder.body?.seller?.pickup_address === '21 Mabini Street, Carmona, Cavite');
+  await call('DELETE', `/orders/${sumanOrder.body.id}`, { token: adminToken });
+
   // Tidy up, so re-running the suite starts from the same shop.
-  for (const id of [pureSuman.body.id, pureCrinkle.body.id, mixed.body.id]) {
+  for (const id of [pureSuman.body.id, pureCrinkle.body.id]) {
     await call('DELETE', `/orders/${id}`, { token: adminToken });
   }
   for (const p of [sumanProduct.body.id, crinkleProduct.body.id]) {

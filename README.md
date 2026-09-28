@@ -118,6 +118,18 @@ Everything a manager can do, plus:
   does not rewrite who earned what last month. Option groups and categories
   stay with admins, since they are shared and one seller editing them would
   change another seller’s products.
+- **Each seller trades as themselves.** A seller sets their own pickup
+  address, GCash number and QR, and their own delivery fee, and anything
+  they leave blank falls back to the shop’s — so a seller is trading the
+  minute they have products, and fills in the rest later. The customer is
+  told to collect from that seller and to pay that seller. The delivery
+  radius is measured from their counter too, not the shop’s: a seller in
+  Carmona delivering one street away is not making a 28 km trip because the
+  shop’s address is in Makati.
+- **One seller per basket.** An order has one place to collect from and one
+  person to pay, so a basket holds one seller’s work. Adding something from
+  another seller offers to empty the basket and start again; the server
+  refuses a mixed one as well, at the quote before anybody reaches checkout.
 - **People** — create staff and customer accounts, change email addresses and
   roles, reset passwords, disable accounts. Both the email address and the
   mobile number sign you in, so a change to either is rejected if another

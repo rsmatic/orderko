@@ -47,7 +47,9 @@ export default function Checkout() {
 
   const hasCoords = form.delivery_lat != null && form.delivery_lng != null;
   const wantsDelivery = form.fulfillment_type === 'delivery';
-  const hasGcash = Boolean(String(shop?.gcash_number ?? '').trim());
+  // Whoever is being paid for this basket, not the shop in general: a seller
+  // without a GCash number cannot be offered as one.
+  const hasGcash = Boolean(String(quote?.seller?.gcash_number ?? shop?.gcash_number ?? '').trim());
 
   // One button per way to get the order. The shop can run both carriers, one,
   // or neither — a shop with neither is pickup only and shows a single button.
@@ -241,7 +243,8 @@ export default function Checkout() {
                 </>
               ) : (
                 <div className="alert alert-info small">
-                  Collect from <strong>{quote?.pickup_address ?? 'the shop'}</strong>. We'll text you when it's ready.
+                  Collect from <strong>{quote?.pickup_address ?? 'the shop'}</strong>
+                  {quote?.seller?.name ? <> · {quote.seller.name}</> : null}. We'll text you when it's ready.
                 </div>
               )}
             </div>
@@ -293,7 +296,7 @@ export default function Checkout() {
             <section className="panel">
               <div className="panel-head"><h3>Paying with GCash</h3></div>
               <div className="panel-body">
-                <GcashPanel amount={quote?.total} currency={quote?.currency} />
+                <GcashPanel amount={quote?.total} currency={quote?.currency} seller={quote?.seller} />
               </div>
             </section>
           ) : null}

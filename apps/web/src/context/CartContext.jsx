@@ -25,6 +25,15 @@ export function CartProvider({ children }) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(lines)); } catch { /* ignore */ }
   }, [lines]);
 
+  /**
+   * The seller everything in the basket belongs to, or null when it is empty.
+   *
+   * An order has one place to collect from and one person to pay, so a basket
+   * holds one seller's work. The server refuses a mixed one too; this is only
+   * so the customer finds out while they can still do something about it.
+   */
+  const sellerId = lines.length ? (lines[0].owner_id ?? null) : undefined;
+
   const add = useCallback((line) => {
     setLines((prev) => {
       const sig = signature(line);
@@ -63,6 +72,10 @@ export function CartProvider({ children }) {
       remove,
       clear,
       count: lines.reduce((n, l) => n + l.quantity, 0),
+      sellerId,
+      sellerName: lines.length ? lines[0].seller_name ?? null : null,
+      // undefined means an empty basket, which accepts anybody.
+      acceptsFrom: (owner) => sellerId === undefined || sellerId === (owner ?? null),
       // Shape the API expects. Display prices are always recomputed server side.
       payload: lines.map((l) => ({
         product_id: l.product_id,
@@ -71,7 +84,7 @@ export function CartProvider({ children }) {
         notes: l.notes || null,
       })),
     }),
-    [lines, add, setQuantity, remove, clear],
+    [lines, sellerId, add, setQuantity, remove, clear],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

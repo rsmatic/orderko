@@ -99,6 +99,10 @@ export async function freshState({
     history: seeded.history,
     deliveries: [],
     deliveryEvents: [],
+    // What each seller sets for themselves: where they are collected from,
+    // where their money goes, what they charge to deliver. Anything they leave
+    // empty falls back to the shop's own setting.
+    sellerProfiles: [],
     audit: [],
     seq: {
       user: 4,
@@ -329,6 +333,19 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         pickup_lng: Number(s.pickup_lng),
         order_lead_mins: Number(s.order_lead_mins),
       },
+      // Who is behind each product, so the storefront can name the seller and
+      // keep a basket to one of them. Only the parts a customer may see.
+      sellers: [...new Set(db.products.map((p) => p.owner_id ?? null))].map((id) => {
+        const sp = sellerProfile(id);
+        return {
+          id: sp.user_id,
+          name: sp.display_name,
+          pickup_address: sp.pickup_address,
+          gcash_number: sp.gcash_number,
+          gcash_name: sp.gcash_name,
+          gcash_qr_url: sp.gcash_qr_url,
+        };
+      }),
       categories: db.categories
         .filter((c) => staff || c.is_active)
         .sort((a, b) => a.sort_order - b.sort_order),
@@ -351,11 +368,15 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
    * than in the UI: the picker can put a pin anywhere, and the fee formula
    * will happily quote a fare across the country.
    */
-  function assertWithinRange(dropoff) {
+  function assertWithinRange(dropoff, seller = null) {
     const limit = Number(db.settings.max_delivery_km ?? 0);
     if (!limit) return;
+    // From the seller's own counter, not the shop's. A seller in Carmona
+    // delivering one street away is not making a 28 km trip just because the
+    // shop's address is in Makati.
+    const from = seller ?? db.settings;
     const km = haversineKm(
-      { lat: Number(db.settings.pickup_lat), lng: Number(db.settings.pickup_lng) },
+      { lat: Number(from.pickup_lat), lng: Number(from.pickup_lng) },
       { lat: Number(dropoff.lat), lng: Number(dropoff.lng) },
     );
     if (km > limit) {
@@ -406,14 +427,15 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     return requested;
   }
 
-  async function quoteDelivery(dropoff, carrier) {
+  async function quoteDelivery(dropoff, carrier, seller = null) {
+    const from = seller ?? sellerProfile(null);
     if (carrier === 'own') {
       const km = haversineKm(
-        { lat: Number(db.settings.pickup_lat), lng: Number(db.settings.pickup_lng) },
+        { lat: Number(from.pickup_lat), lng: Number(from.pickup_lng) },
         { lat: Number(dropoff.lat), lng: Number(dropoff.lng) },
       );
-      const flat = Number(db.settings.own_delivery_fee ?? 0);
-      const perKm = Number(db.settings.own_delivery_fee_per_km ?? 0);
+      const flat = Number(from.own_delivery_fee ?? 0);
+      const perKm = Number(from.own_delivery_fee_per_km ?? 0);
       return {
         provider: 'own',
         fee: round2(flat + perKm * km),
@@ -423,7 +445,78 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         eta_minutes: Number(db.settings.order_lead_mins ?? 0) || null,
       };
     }
-    return delivery.quote({ pickup: pickupPlace(), dropoff });
+    return delivery.quote({
+      pickup: {
+        address: from.pickup_address,
+        lat: Number(from.pickup_lat),
+        lng: Number(from.pickup_lng),
+        phone: from.pickup_phone,
+        name: from.display_name,
+      },
+      dropoff,
+    });
+  }
+
+  /** The fields a seller may set instead of the shop's. */
+  const SELLER_FIELDS = [
+    'display_name',
+    'gcash_number', 'gcash_name', 'gcash_qr_url',
+    'pickup_address', 'pickup_lat', 'pickup_lng', 'pickup_phone',
+    'own_delivery_fee', 'own_delivery_fee_per_km',
+  ];
+
+  /**
+   * A seller's details, with the shop's used for anything they have not set.
+   *
+   * Falling back rather than requiring every field is what lets a seller be
+   * added in a minute: assign them some products and they are trading, with
+   * the shop's pickup point and the shop's GCash, until they fill in their
+   * own.
+   */
+  function sellerProfile(ownerId) {
+    const own = (db.sellerProfiles ?? []).find((p) => p.user_id === ownerId) ?? {};
+    const shop = db.settings;
+    const pick = (k) => {
+      const v = own[k];
+      return v === undefined || v === null || v === '' ? shop[k] : v;
+    };
+    return {
+      user_id: ownerId ?? null,
+      display_name: own.display_name
+        || db.users.find((u) => u.id === ownerId)?.name
+        || shop.shop_name,
+      gcash_number: pick('gcash_number') ?? '',
+      gcash_name: own.gcash_name || own.display_name
+        || (ownerId == null ? shop.gcash_name : db.users.find((u) => u.id === ownerId)?.name)
+        || shop.gcash_name || '',
+      gcash_qr_url: pick('gcash_qr_url') ?? '',
+      pickup_address: pick('pickup_address'),
+      pickup_lat: Number(pick('pickup_lat')),
+      pickup_lng: Number(pick('pickup_lng')),
+      pickup_phone: pick('pickup_phone'),
+      own_delivery_fee: Number(pick('own_delivery_fee') ?? 0),
+      own_delivery_fee_per_km: Number(pick('own_delivery_fee_per_km') ?? 0),
+    };
+  }
+
+  /**
+   * The one seller a basket belongs to.
+   *
+   * A basket holds one seller's work and no more, so that an order has a
+   * single place to collect from and a single person to pay. Mixing them would
+   * mean one order with two pickup points, which is not an order.
+   */
+  function sellerOfItems(items) {
+    const owners = new Set(
+      (items ?? []).map((raw) => {
+        const p = db.products.find((x) => x.id === Number(raw.product_id));
+        return p?.owner_id ?? null;
+      }),
+    );
+    if (owners.size > 1) {
+      throw bad('One order can only hold items from one seller. Place a second order for the rest.');
+    }
+    return owners.size === 1 ? [...owners][0] : null;
   }
 
   const pickupPlace = () => ({
@@ -500,7 +593,25 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     const history = db.history
       .filter((h) => h.order_id === order.id)
       .map((h) => ({ ...h, changed_by_name: db.users.find((u) => u.id === h.changed_by)?.name ?? null }));
-    return { ...order, items, history, delivery: deliveryForOrder(order.id) };
+    // Who made it, so the order page can say where to collect and whose
+    // GCash to pay. Read from the items, which carry the owner they were
+    // sold under.
+    const owner = items.length ? items[0].owner_id ?? null : null;
+    const sp = sellerProfile(owner);
+    return {
+      ...order,
+      items,
+      history,
+      delivery: deliveryForOrder(order.id),
+      seller: {
+        id: sp.user_id,
+        name: sp.display_name,
+        pickup_address: sp.pickup_address,
+        gcash_number: sp.gcash_number,
+        gcash_name: sp.gcash_name,
+        gcash_qr_url: sp.gcash_qr_url,
+      },
+    };
   }
 
   /**
@@ -861,20 +972,97 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
      * Just the shop's public settings. The storefront header needs the name
      * and logo on every page and has no use for the whole catalog.
      */
+    /**
+     * What a seller has set for themselves, with the shop's used for anything
+     * they have not. Public: the customer has to be told where to collect the
+     * order and whose GCash to pay, and neither is a secret.
+     */
+    ['GET', /^\/sellers\/(\d+|shop)\/profile$/, async (m) => {
+      const id = m[1] === 'shop' ? null : Number(m[1]);
+      if (id != null && !db.users.some((u) => u.id === id)) throw notFound('No such seller');
+      return sellerProfile(id);
+    }],
+
+    /** Every seller with something for sale, for an admin choosing between them. */
+    ['GET', /^\/sellers$/, async (m, body, user) => {
+      requireRole(user, 'admin', 'manager');
+      const owners = new Set(db.products.map((p) => p.owner_id ?? null));
+      return {
+        sellers: [...owners]
+          .map((id) => ({
+            ...sellerProfile(id),
+            products: db.products.filter((p) => (p.owner_id ?? null) === id).length,
+          }))
+          .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name))),
+      };
+    }],
+
+    /**
+     * A seller sets their own; an admin may set anyone's. Blank means "use the
+     * shop's", which is how a seller is switched back to the house defaults.
+     */
+    ['PUT', /^\/sellers\/(\d+)\/profile$/, async (m, body, user) => {
+      requireRole(user, 'admin', 'manager');
+      const id = Number(m[1]);
+      if (!managesEverything(user) && user.id !== id) {
+        throw forbidden('You can only change your own details');
+      }
+      if (!db.users.some((u) => u.id === id)) throw notFound('No such seller');
+
+      db.sellerProfiles = db.sellerProfiles ?? [];
+      const row = db.sellerProfiles.find((p) => p.user_id === id)
+        ?? (db.sellerProfiles.push({ user_id: id }), db.sellerProfiles.at(-1));
+
+      for (const k of SELLER_FIELDS) {
+        if (body[k] === undefined) continue;
+        if (k === 'gcash_number') {
+          const typed = String(body[k] ?? '').trim();
+          if (typed && !phoneKey(typed)) throw bad('Enter a valid GCash mobile number');
+          row[k] = typed;
+        } else if (k === 'gcash_qr_url') {
+          const value = String(body[k] ?? '').trim();
+          if (value.length > MAX_IMAGE_CHARS) {
+            throw bad('That image is too large — keep it under '
+              + Math.round(MAX_IMAGE_CHARS / 1024) + ' KB');
+          }
+          if (value && !/^(https?:\/\/|data:image\/)/.test(value)) {
+            throw bad('An image must be an https:// address or an uploaded picture');
+          }
+          row[k] = value;
+        } else if (k === 'own_delivery_fee' || k === 'own_delivery_fee_per_km') {
+          if (body[k] === '' || body[k] === null) { row[k] = ''; continue; }
+          const n = Number(body[k]);
+          if (!Number.isFinite(n) || n < 0) throw bad('A delivery fee cannot be negative');
+          row[k] = round2(n);
+        } else if (k === 'pickup_lat' || k === 'pickup_lng') {
+          if (body[k] === '' || body[k] === null) { row[k] = ''; continue; }
+          const n = Number(body[k]);
+          if (!Number.isFinite(n)) throw bad('That pickup point is not a place');
+          row[k] = n;
+        } else {
+          row[k] = String(body[k] ?? '').trim().slice(0, 300);
+        }
+      }
+
+      audit(user, 'seller.profile', 'user', id, { fields: Object.keys(body) });
+      return sellerProfile(id);
+    }],
+
     ['GET', /^\/catalog\/settings$/, async (m, body, user) => buildMenu(user).settings],
 
     // -------------------------------------------------------------- orders
     ['POST', /^\/orders\/quote$/, async (m, body) => {
       const { items, subtotal } = priceCart(db, body.items);
+      const seller = sellerProfile(sellerOfItems(body.items));
 
       let deliveryQuote = null;
       if (body.fulfillment_type === 'delivery' && body.delivery_lat != null) {
-        assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng });
+        assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng }, seller);
         deliveryQuote = await quoteDelivery({
           address: body.delivery_address,
           lat: Number(body.delivery_lat),
           lng: Number(body.delivery_lng),
-        }, resolveCarrier(body.delivery_carrier));
+        }, resolveCarrier(body.delivery_carrier), seller);
       }
 
       const totals = totalsFor({
@@ -888,7 +1076,16 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         ...totals,
         currency: db.settings.currency,
         delivery_quote: deliveryQuote,
-        pickup_address: db.settings.pickup_address,
+        // The seller's own, falling back to the shop's. This is what the
+        // customer is shown, so it has to be whoever is actually making it.
+        seller: {
+          id: seller.user_id,
+          name: seller.display_name,
+          gcash_number: seller.gcash_number,
+          gcash_name: seller.gcash_name,
+          gcash_qr_url: seller.gcash_qr_url,
+        },
+        pickup_address: seller.pickup_address,
         order_lead_mins: Number(db.settings.order_lead_mins),
         min_order_total: Number(db.settings.min_order_total),
         meets_minimum: subtotal >= Number(db.settings.min_order_total),
@@ -900,12 +1097,15 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const carrier = body.fulfillment_type === 'delivery'
         ? resolveCarrier(body.delivery_carrier)
         : null;
+      // Throws if the basket mixes sellers, before anything is written.
+      const seller = sellerProfile(sellerOfItems(body.items));
       const paymentMethod = body.payment_method ?? 'cash';
       if (!PAYMENT_METHODS.includes(paymentMethod)) throw bad('Unknown payment method');
       // Taking a GCash order with nowhere to send the money would strand it in
       // unpaid with no way for the customer to settle up.
-      if (paymentMethod === 'gcash' && !String(db.settings.gcash_number ?? '').trim()) {
-        throw bad('GCash is not set up for this shop yet');
+      if (paymentMethod === 'gcash'
+        && !String(sellerProfile(sellerOfItems(body.items)).gcash_number ?? '').trim()) {
+        throw bad('GCash is not set up for this seller yet');
       }
 
       const { items, subtotal } = priceCart(db, body.items);
@@ -919,12 +1119,12 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         if (body.delivery_lat == null || body.delivery_lng == null) {
           throw bad('Delivery orders need an address with coordinates');
         }
-        assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng });
+        assertWithinRange({ lat: body.delivery_lat, lng: body.delivery_lng }, seller);
         const q = await quoteDelivery({
           address: body.delivery_address,
           lat: Number(body.delivery_lat),
           lng: Number(body.delivery_lng),
-        }, carrier);
+        }, carrier, seller);
         deliveryFee = q.fee;
       }
 

@@ -229,7 +229,7 @@ export default function OrderTracking() {
             </div>
 
             {order.payment_method === 'gcash' && order.payment_status !== 'paid' ? (
-              <GcashPanel amount={order.total} currency={order.currency}>
+              <GcashPanel amount={order.total} currency={order.currency} seller={order.seller}>
                 <div className="tiny muted">
                   Send it from your GCash app. We'll mark this order paid once it
                   arrives — you don't need to do anything else here.
