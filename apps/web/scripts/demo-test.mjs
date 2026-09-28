@@ -205,9 +205,13 @@ check('sold-out fruit cannot be ordered',
   !(await call('POST', '/orders/quote', { items: [{ product_id: byo.id, quantity: 1, option_ids: [size, milk, id('Dragon Fruit')] }] })).ok);
 await call('PATCH', '/catalog/options/' + id('Dragon Fruit'), { is_available: true }, mT);
 
-const newOpt = await call('POST', '/catalog/options', { group_id: fruit.id, name: 'Test Berry', price_delta: 2.5 }, mT);
-check('manager adds a fruit', newOpt.ok, newOpt.error);
-check('and removes it', (await call('DELETE', '/catalog/options/' + newOpt.body.id, null, mT)).body.deleted === true);
+// Adding or removing a shared choice reshapes every seller's products, so it
+// is an admin act; marking one sold out above is not.
+const deniedOpt = await call('POST', '/catalog/options', { group_id: fruit.id, name: 'Test Berry', price_delta: 2.5 }, mT);
+check('a manager cannot add a shared fruit', !deniedOpt.ok && deniedOpt.status === 403);
+const newOpt = await call('POST', '/catalog/options', { group_id: fruit.id, name: 'Test Berry', price_delta: 2.5 }, aT);
+check('an admin adds a fruit', newOpt.ok, newOpt.error);
+check('and removes it', (await call('DELETE', '/catalog/options/' + newOpt.body.id, null, aT)).body.deleted === true);
 
 const stats = await call('GET', '/admin/stats?days=30', null, aT);
 check('stats load', stats.ok && stats.body.period.orders > 0, stats.error);

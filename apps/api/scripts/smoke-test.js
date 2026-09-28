@@ -102,14 +102,95 @@ async function main() {
   check('anonymous cannot read the kitchen queue', anonAtQueue.status === 401, `got ${anonAtQueue.status}`);
 
   // -------------------------------------------------------------- catalog
+  section('The shared menu is an admin job');
+
+  // A seller editing an option group or a category changes every other
+  // seller's products, so it is granted rather than assumed.
+  const plain = await call('POST', '/admin/users', {
+    token: adminToken,
+    body: {
+      name: 'Plain Seller', email: 'smoke-plain@orderko.test', password: PASSWORD,
+      role: 'manager', manages_all_products: false, can_edit_shared_menu: false,
+    },
+  });
+  const plainId = plain.status === 409
+    ? (await call('GET', '/admin/users?limit=200', { token: adminToken }))
+      .body.users.find((u) => u.email === 'smoke-plain@orderko.test').id
+    : plain.body.id;
+  await call('PATCH', `/admin/users/${plainId}`, {
+    token: adminToken, body: { can_edit_shared_menu: false, manages_all_products: false },
+  });
+  const plainToken = await login('smoke-plain@orderko.test');
+
+  const someCat = (await call('GET', '/catalog/menu', { token: adminToken })).body.categories[0];
+  const someGroup = (await call('GET', '/catalog/menu', { token: adminToken })).body.option_groups[0];
+
+  check('a plain seller cannot rename a category',
+    (await call('PATCH', `/catalog/categories/${someCat.id}`, {
+      token: plainToken, body: { name: 'Mine' },
+    })).status === 403);
+  check('nor add one',
+    (await call('POST', '/catalog/categories', {
+      token: plainToken, body: { name: 'Mine too' },
+    })).status === 403);
+  check('nor touch a shared option group',
+    (await call('PATCH', `/catalog/option-groups/${someGroup.id}`, {
+      token: plainToken, body: { name: 'Mine as well' },
+    })).status === 403);
+  check('nor an option inside one',
+    (await call('POST', '/catalog/options', {
+      token: plainToken, body: { group_id: someGroup.id, name: 'Sneaky', price_delta: 0 },
+    })).status === 403);
+  check('the refusal explains itself',
+    /admin job/i.test((await call('POST', '/catalog/categories', {
+      token: plainToken, body: { name: 'x' },
+    })).body?.error ?? ''), 'unclear refusal');
+
+  // Their own items are still theirs.
+  check('but they can still add their own item',
+    (await call('POST', '/catalog/products', {
+      token: plainToken, body: { name: `Theirs ${Date.now()}`, category_id: someCat.id, base_price: 50 },
+    })).status === 201);
+
+  check('and the dashboard is told they may not',
+    (await call('GET', '/auth/me', { token: plainToken })).body?.user?.can_edit_shared_menu === false,
+    JSON.stringify((await call('GET', '/auth/me', { token: plainToken })).body?.user));
+
+  // Granted, the same person can.
+  await call('PATCH', `/admin/users/${plainId}`, {
+    token: adminToken, body: { can_edit_shared_menu: true },
+  });
+  const granted = await login('smoke-plain@orderko.test');
+  check('an admin can grant it',
+    (await call('GET', '/auth/me', { token: granted })).body?.user?.can_edit_shared_menu === true);
+  check('and then they can rename a category',
+    (await call('PATCH', `/catalog/categories/${someCat.id}`, {
+      token: granted, body: { name: someCat.name },
+    })).status === 200);
+
+  check('a manager cannot grant it to themselves',
+    (await call('PATCH', `/admin/users/${plainId}`, {
+      token: granted, body: { can_edit_shared_menu: true },
+    })).status === 403);
+
+  // Tidy up.
+  for (const p of (await call('GET', '/catalog/menu', { token: adminToken })).body.products
+    .filter((x) => String(x.name).startsWith('Theirs '))) {
+    await call('DELETE', `/catalog/products/${p.id}`, { token: adminToken });
+  }
+  await call('DELETE', `/admin/users/${plainId}`, { token: adminToken });
+  check('the test seller is gone',
+    !(await call('GET', '/admin/users?limit=200', { token: adminToken }))
+      .body.users.some((u) => u.email === 'smoke-plain@orderko.test'));
+
   section('Categories');
 
-  const cats = (await call('GET', '/catalog/menu', { token: managerToken })).body.categories;
+  const cats = (await call('GET', '/catalog/menu', { token: adminToken })).body.categories;
   const first = cats[0];
   const wasCalled = first.name;
 
   const renamed = await call('PATCH', `/catalog/categories/${first.id}`, {
-    token: managerToken, body: { name: '  Merienda  ' },
+    token: adminToken, body: { name: '  Merienda  ' },
   });
   check('a category can be renamed', renamed.status === 200, renamed.body?.error);
   check('and the name is trimmed', renamed.body?.name === 'Merienda',
@@ -119,14 +200,14 @@ async function main() {
 
   // Renaming must never move anything between categories.
   check('the items stayed where they were',
-    (await call('GET', '/catalog/menu', { token: managerToken })).body.products
+    (await call('GET', '/catalog/menu', { token: adminToken })).body.products
       .filter((p) => p.category_id === first.id).length
-      === (await call('GET', '/catalog/menu', { token: managerToken })).body.products
+      === (await call('GET', '/catalog/menu', { token: adminToken })).body.products
         .filter((p) => p.category_id === first.id).length);
 
   check('an empty name is refused',
     (await call('PATCH', `/catalog/categories/${first.id}`, {
-      token: managerToken, body: { name: '   ' },
+      token: adminToken, body: { name: '   ' },
     })).status === 400);
   check('and the old name survived that',
     (await call('GET', '/catalog/menu')).body.categories
@@ -143,21 +224,21 @@ async function main() {
     'no category.update entry');
 
   const made = await call('POST', '/catalog/categories', {
-    token: managerToken, body: { name: 'Pasalubong', sort_order: 99 },
+    token: adminToken, body: { name: 'Pasalubong', sort_order: 99 },
   });
   check('a category can be added', made.status === 201, made.body?.error);
 
   // Hidden rather than deleted: a category with items in it would orphan them.
   check('a category can be hidden',
     (await call('PATCH', `/catalog/categories/${made.body.id}`, {
-      token: managerToken, body: { is_active: false },
+      token: adminToken, body: { is_active: false },
     })).status === 200);
   check('and a hidden one leaves the storefront',
     !(await call('GET', '/catalog/menu')).body.categories.some((c) => c.id === made.body.id));
 
   // Put the name back so the suite can run again.
   await call('PATCH', `/catalog/categories/${first.id}`, {
-    token: managerToken, body: { name: wasCalled },
+    token: adminToken, body: { name: wasCalled },
   });
   check('the original name goes back',
     (await call('GET', '/catalog/menu')).body.categories
@@ -466,16 +547,16 @@ async function main() {
   });
 
   const newOption = await call('POST', '/catalog/options', {
-    token: managerToken,
+    token: adminToken,
     body: {
       group_id: fruitGroup.id,
       name: `Smoke Berry ${Date.now()}`,
       price_delta: 2.5,
     },
   });
-  check('manager can add a new fruit', newOption.status === 201, JSON.stringify(newOption.body?.error));
+  check('an admin can add a new fruit', newOption.status === 201, JSON.stringify(newOption.body?.error));
   if (newOption.body?.id) {
-    const removed = await call('DELETE', `/catalog/options/${newOption.body.id}`, { token: managerToken });
+    const removed = await call('DELETE', `/catalog/options/${newOption.body.id}`, { token: adminToken });
     check('and remove it again', removed.status === 200 && removed.body?.deleted === true);
   }
 

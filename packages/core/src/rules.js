@@ -55,6 +55,9 @@ export const publicUser = (u) =>
     // The dashboard needs to know whether to show one seller their own shelf
     // or the whole shop. An admin always runs the whole shop.
     manages_all_products: u.role === 'admin' || u.manages_all_products !== false,
+    // The shared choices and categories are everyone's, so this one is
+    // granted rather than assumed.
+    can_edit_shared_menu: u.role === 'admin' || u.can_edit_shared_menu === true,
   };
 
 export const slugify = (s) =>

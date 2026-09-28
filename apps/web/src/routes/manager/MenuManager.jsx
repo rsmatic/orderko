@@ -32,7 +32,10 @@ const emptyOption = (groupId) => ({
 });
 
 export default function MenuManager() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user: me } = useAuth();
+  // The shared choices and categories belong to every seller at once, so an
+  // admin decides who may touch them. The server refuses either way.
+  const canEditShared = me?.can_edit_shared_menu;
   const [menu, setMenu] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -72,6 +75,7 @@ export default function MenuManager() {
     }
   }
 
+
   if (!menu) return <><DashHeader title="Menu & prices" /><div className="dash-body"><Loading /></div></>;
 
   return (
@@ -104,12 +108,16 @@ export default function MenuManager() {
           <button type="button" className="cat-chip" aria-pressed={tab === 'products'} onClick={() => setTab('products')}>
             Items ({menu.products.length})
           </button>
+          {canEditShared ? (
+            <>
           <button type="button" className="cat-chip" aria-pressed={tab === 'options'} onClick={() => setTab('options')}>
             Add-ons & choices ({menu.option_groups.reduce((n, g) => n + g.options.length, 0)})
           </button>
           <button type="button" className="cat-chip" aria-pressed={tab === 'categories'} onClick={() => setTab('categories')}>
             Categories ({menu.categories.length})
           </button>
+            </>
+          ) : null}
         </div>
 
         {tab === 'products' ? (

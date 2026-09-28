@@ -169,6 +169,26 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
   const ownsProduct = (u, product) =>
     managesEverything(u) || (product?.owner_id != null && product.owner_id === u?.id);
 
+  /**
+   * Option groups, their options and the categories are shared: every seller's
+   * products are built from the same ones. A seller editing "Jar Size" or
+   * renaming a category changes somebody else's shop, so it is not theirs by
+   * default — an admin hands it out.
+   *
+   * An admin always has it. A manager who runs the whole shop does not
+   * automatically: seeing everything and being able to rewrite the scaffolding
+   * everyone stands on are different things.
+   */
+  const canEditSharedMenu = (u) => Boolean(u) &&
+    (u.role === 'admin' || u.can_edit_shared_menu === true);
+
+  const requireSharedMenu = (u) => {
+    requireRole(u, 'admin', 'manager');
+    if (!canEditSharedMenu(u)) {
+      throw forbidden('Changing the shared choices and categories is an admin job');
+    }
+  };
+
   const requireOwnership = (u, product) => {
     if (!ownsProduct(u, product)) throw forbidden('That product belongs to someone else');
     return product;
@@ -904,7 +924,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['POST', /^\/catalog\/options$/, async (m, body, user) => {
-      requireRole(user, 'admin', 'manager');
+      requireSharedMenu(user);
       const o = {
         id: nextId('option'),
         group_id: Number(body.group_id),
@@ -923,7 +943,15 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['PATCH', /^\/catalog\/options\/(\d+)$/, async (m, body, user) => {
-      requireRole(user, 'admin', 'manager');
+      // Running out of mango is kitchen work, not a change to the menu, and
+      // whoever is on the counter is the one who notices. Renaming it or
+      // repricing it changes every seller's products, so that stays an admin
+      // job. One endpoint, two different acts.
+      const RUNNING_OUT = ['is_available', 'stock_qty', 'track_stock'];
+      const onlyStock = Object.keys(body).length > 0
+        && Object.keys(body).every((k) => RUNNING_OUT.includes(k));
+      if (onlyStock) requireRole(user, 'admin', 'manager');
+      else requireSharedMenu(user);
       const o = db.options.find((x) => x.id === Number(m[1]));
       if (!o) throw notFound('Option not found');
       for (const k of ['group_id', 'name', 'description', 'price_delta', 'sort_order', 'stock_qty']) {
@@ -937,7 +965,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['DELETE', /^\/catalog\/options\/(\d+)$/, async (m, body, user) => {
-      requireRole(user, 'admin', 'manager');
+      requireSharedMenu(user);
       const id = Number(m[1]);
       const o = db.options.find((x) => x.id === id);
       if (!o) throw notFound('Option not found');
@@ -952,7 +980,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['POST', /^\/catalog\/option-groups$/, async (m, body, user) => {
-      requireRole(user, 'admin', 'manager');
+      requireSharedMenu(user);
       const g = {
         id: nextId('group'),
         name: body.name,
@@ -974,7 +1002,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['PATCH', /^\/catalog\/option-groups\/(\d+)$/, async (m, body, user) => {
-      requireRole(user, 'admin', 'manager');
+      requireSharedMenu(user);
       const g = db.optionGroups.find((x) => x.id === Number(m[1]));
       if (!g) throw notFound('Option group not found');
       const snapshot = { ...g };
@@ -996,7 +1024,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['POST', /^\/catalog\/categories$/, async (m, body, user) => {
-      requireRole(user, 'admin', 'manager');
+      requireSharedMenu(user);
       const c = {
         id: nextId('category'),
         name: body.name,
@@ -1010,7 +1038,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     }],
 
     ['PATCH', /^\/catalog\/categories\/(\d+)$/, async (m, body, user) => {
-      requireRole(user, 'admin', 'manager');
+      requireSharedMenu(user);
       const c = db.categories.find((x) => x.id === Number(m[1]));
       if (!c) throw notFound('Category not found');
       if (body.name !== undefined) {
@@ -1817,6 +1845,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         phone: body.phone ?? null,
         role: body.role,
         manages_all_products: Boolean(body.manages_all_products),
+        can_edit_shared_menu: Boolean(body.can_edit_shared_menu),
         is_active: 1,
         created_at: nowIso(),
       };
@@ -1840,6 +1869,9 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       if (body.email !== undefined) target.email = changeEmail(target, body.email);
       if (body.manages_all_products !== undefined) {
         target.manages_all_products = Boolean(body.manages_all_products);
+      }
+      if (body.can_edit_shared_menu !== undefined) {
+        target.can_edit_shared_menu = Boolean(body.can_edit_shared_menu);
       }
       if (body.phone !== undefined) assertPhoneFree(body.phone, target.id);
       for (const k of ['name', 'phone', 'role']) if (body[k] !== undefined) target[k] = body[k];

@@ -284,6 +284,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
     phone: user.phone ?? '',
     role: user.role ?? 'customer',
     manages_all_products: Boolean(user.manages_all_products),
+    can_edit_shared_menu: Boolean(user.can_edit_shared_menu),
     is_active: Boolean(user.is_active ?? true),
     password: '',
   });
@@ -307,6 +308,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           phone: form.phone.trim() || null,
           role: form.role,
           manages_all_products: form.manages_all_products,
+          can_edit_shared_menu: form.can_edit_shared_menu,
           password: form.password,
         });
         onSaved('Account created');
@@ -316,6 +318,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           phone: form.phone.trim() || null,
           role: form.role,
           manages_all_products: form.manages_all_products,
+          can_edit_shared_menu: form.can_edit_shared_menu,
           is_active: form.is_active,
         };
         const email = form.email.trim().toLowerCase();
@@ -412,6 +415,18 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
             />
             Every product, and every order
           </label>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={form.can_edit_shared_menu}
+              onChange={(e) => set({ can_edit_shared_menu: e.target.checked })}
+            />
+            The shared add-ons and categories
+          </label>
+          <span className="hint">
+            Those are built into every seller’s items, so editing them changes
+            other people’s products. Off, they do not see those tabs at all.
+          </span>
           <span className="hint">
             Off, they see only the products assigned to them, and only the
             orders made up entirely of those. An admin always sees everything.

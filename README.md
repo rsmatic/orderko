@@ -116,8 +116,11 @@ Everything a manager can do, plus:
   breakdown plus `?owner=<id>` to look at one at a time. Which seller earned
   a line is snapshotted onto the order item, so reassigning a product later
   does not rewrite who earned what last month. Option groups and categories
-  stay with admins, since they are shared and one seller editing them would
-  change another seller’s products.
+  are shared — one seller editing them changes another seller’s products — so
+  they need **The shared add-ons and categories** granted in People, and
+  those tabs are not even shown without it. Marking an existing choice sold
+  out is not the same act: running out of mango is kitchen work, and any
+  manager can do it.
 - **Each seller trades as themselves**, set under **People → Selling as**.
   Their pickup point, GCash, delivery fee **and which carriers they offer** —
   Grab, their own delivery, or neither. The shop itself is a seller too, for
