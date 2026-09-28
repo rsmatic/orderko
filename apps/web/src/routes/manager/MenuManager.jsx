@@ -306,7 +306,22 @@ function ProductEditor({ product, menu, canDelete, onClose, onSaved, onError }) 
     stock_qty: product.stock_qty ?? 0,
     sort_order: product.sort_order ?? 0,
     option_group_ids: (product.option_groups ?? []).map((g) => g.id),
+    owner_id: product.owner_id ?? '',
   });
+  // Only someone who runs the whole shop may hand a product to a seller, and
+  // the server refuses it either way.
+  const { user: me } = useAuth();
+  const canAssign = me?.manages_all_products;
+  const [staff, setStaff] = useState([]);
+
+  useEffect(() => {
+    if (!canAssign) return undefined;
+    const controller = new AbortController();
+    api.get('/admin/users?limit=200', { signal: controller.signal })
+      .then((res) => setStaff((res.users ?? []).filter((u) => u.role !== 'customer')))
+      .catch(() => { /* the picker just stays empty */ });
+    return () => controller.abort();
+  }, [canAssign]);
   const [busy, setBusy] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -323,12 +338,16 @@ function ProductEditor({ product, menu, canDelete, onClose, onSaved, onError }) 
     try {
       const body = {
         ...form,
+        owner_id: form.owner_id === '' ? null : Number(form.owner_id),
         base_price: Number(form.base_price),
         stock_qty: Number(form.stock_qty),
         sort_order: Number(form.sort_order),
         description: form.description || null,
         image_url: form.image_url || '',
       };
+      // A manager without the run of the shop cannot reassign, and sending
+      // the field at all would have the server refuse the whole save.
+      if (!canAssign) delete body.owner_id;
       if (isNew) await api.post('/catalog/products', body);
       else await api.patch(`/catalog/products/${product.id}`, body);
       onSaved(isNew ? 'Item created' : 'Item saved');
@@ -378,6 +397,24 @@ function ProductEditor({ product, menu, canDelete, onClose, onSaved, onError }) 
             {menu.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
+        {canAssign ? (
+          <Field
+            label="Sold by"
+            hint="Who manages this item. They see only their own products, and only the orders made up entirely of them."
+          >
+            <select
+              className="select"
+              value={form.owner_id}
+              onChange={(e) => set({ owner_id: e.target.value })}
+            >
+              <option value="">The shop (admins only)</option>
+              {staff.map((u) => (
+                <option key={u.id} value={u.id}>{u.name} — {u.email}</option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+
         <Field label="Base price (PHP)" hint="Options add on top of this.">
           <input
             className="input" type="number" step="5" min="0"

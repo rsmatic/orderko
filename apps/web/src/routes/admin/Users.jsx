@@ -225,6 +225,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
     email: user.email ?? '',
     phone: user.phone ?? '',
     role: user.role ?? 'customer',
+    manages_all_products: Boolean(user.manages_all_products),
     is_active: Boolean(user.is_active ?? true),
     password: '',
   });
@@ -240,6 +241,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           email: form.email.trim(),
           phone: form.phone.trim() || null,
           role: form.role,
+          manages_all_products: form.manages_all_products,
           password: form.password,
         });
         onSaved('Account created');
@@ -248,6 +250,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           name: form.name.trim(),
           phone: form.phone.trim() || null,
           role: form.role,
+          manages_all_products: form.manages_all_products,
           is_active: form.is_active,
         };
         const email = form.email.trim().toLowerCase();
@@ -295,6 +298,23 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           value={form.email} onChange={(e) => set({ email: e.target.value })}
         />
       </Field>
+
+      {form.role === 'manager' ? (
+        <Field label="What they can manage">
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={form.manages_all_products}
+              onChange={(e) => set({ manages_all_products: e.target.checked })}
+            />
+            Every product, and every order
+          </label>
+          <span className="hint">
+            Off, they see only the products assigned to them, and only the
+            orders made up entirely of those. An admin always sees everything.
+          </span>
+        </Field>
+      ) : null}
 
       <Field label="Phone">
         <input className="input" type="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} />

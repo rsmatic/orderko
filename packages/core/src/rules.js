@@ -50,7 +50,12 @@ export const ORDER_STATUS_FOR_DELIVERY = {
 export const isStaff = (user) => user?.role === 'admin' || user?.role === 'manager';
 
 export const publicUser = (u) =>
-  u && { id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role };
+  u && {
+    id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role,
+    // The dashboard needs to know whether to show one seller their own shelf
+    // or the whole shop. An admin always runs the whole shop.
+    manages_all_products: u.role === 'admin' || u.manages_all_products !== false,
+  };
 
 export const slugify = (s) =>
   String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 150);

@@ -106,6 +106,18 @@ a real Grab fee quote, order tracking with driver details, and order history.
 
 Everything a manager can do, plus:
 
+- **Sellers** — several people can sell from one shop. A product belongs to
+  a user, and a manager with **Every product, and every order** switched off
+  sees only their own products and only the orders made up entirely of them.
+  Customers are unaffected: the storefront shows the whole shop, and a basket
+  can mix sellers. An order that mixes them belongs to no single seller, so
+  it stays with the admins — otherwise nobody would see it and nobody would
+  make it. Reports scope the same way, and an admin gets a per-seller
+  breakdown plus  to look at one at a time. Which seller earned
+  a line is snapshotted onto the order item, so reassigning a product later
+  does not rewrite who earned what last month. Option groups and categories
+  stay with admins, since they are shared and one seller editing them would
+  change another seller’s products.
 - **People** — create staff and customer accounts, change email addresses and
   roles, reset passwords, disable accounts. Both the email address and the
   mobile number sign you in, so a change to either is rejected if another

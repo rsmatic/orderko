@@ -145,6 +145,52 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
   }
 
   const requireUser = (u) => { if (!u) throw unauthorized(); return u; };
+
+  /**
+   * Several sellers can share one shop. A product belongs to a user, and a
+   * manager sees only their own — unless an admin has given them the run of
+   * the place.
+   *
+   * An admin always can; there is no point in a shop owner who has to grant
+   * themselves permission, and no way to recover if they revoked it.
+   */
+  const managesEverything = (u) => Boolean(u) &&
+    // Absent means the run of the shop, which is what every manager had
+    // before sellers existed. Upgrading an existing shop must not leave its
+    // manager staring at an empty board; only an admin deliberately turning
+    // this off should narrow what they see.
+    (u.role === 'admin' || u.manages_all_products !== false);
+
+  /** A product with no owner belongs to the shop, which only an admin runs. */
+  const ownsProduct = (u, product) =>
+    managesEverything(u) || (product?.owner_id != null && product.owner_id === u?.id);
+
+  const requireOwnership = (u, product) => {
+    if (!ownsProduct(u, product)) throw forbidden('That product belongs to someone else');
+    return product;
+  };
+
+  /**
+   * The single seller behind an order, or null when it has items from more
+   * than one — or none that are owned.
+   *
+   * Mixed orders are nobody's in particular, so they stay with the admins.
+   * The alternative is an order that no seller can see and therefore nobody
+   * makes.
+   */
+  function ownerOfOrder(orderId) {
+    const owners = new Set(
+      db.orderItems.filter((i) => i.order_id === orderId).map((i) => i.owner_id ?? null),
+    );
+    return owners.size === 1 ? [...owners][0] : null;
+  }
+
+  const canSeeOrder = (u, orderId) =>
+    managesEverything(u) || ownerOfOrder(orderId) === u?.id;
+
+  const requireOrderAccess = (u, orderId) => {
+    if (!canSeeOrder(u, orderId)) throw forbidden('That order belongs to another seller');
+  };
   const requireRole = (u, ...roles) => {
     requireUser(u);
     if (!roles.includes(u.role)) throw forbidden(`Requires role: ${roles.join(' or ')}`);
@@ -234,8 +280,12 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
     const groupById = new Map(groups.map((g) => [g.id, g]));
 
+    // Customers shop the whole store — the separation is between sellers, not
+    // between what is for sale. It only applies to staff looking at the menu
+    // in order to manage it.
     const products = db.products
       .filter((p) => staff || p.is_active)
+      .filter((p) => !staff || managesEverything(user) || p.owner_id === user.id)
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((p) => ({
         ...p,
@@ -619,8 +669,17 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
     ['POST', /^\/catalog\/products$/, async (m, body, user) => {
       requireRole(user, 'admin', 'manager');
+      // A manager's product is theirs. An admin may hand it to someone, or
+      // leave it unowned as the shop's own.
+      const owner = managesEverything(user)
+        ? (body.owner_id == null ? null : Number(body.owner_id))
+        : user.id;
+      if (owner != null && !db.users.some((u) => u.id === owner && u.role !== 'customer')) {
+        throw bad('That owner is not a member of staff');
+      }
       const p = {
         id: nextId('product'),
+        owner_id: owner,
         category_id: Number(body.category_id),
         name: body.name,
         slug: body.slug || slugify(body.name),
@@ -642,6 +701,17 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireRole(user, 'admin', 'manager');
       const p = db.products.find((x) => x.id === Number(m[1]));
       if (!p) throw notFound('Product not found');
+      requireOwnership(user, p);
+      // Only someone who runs the whole shop may hand a product to another
+      // seller; otherwise a manager could give away — or quietly take — stock.
+      if (body.owner_id !== undefined) {
+        if (!managesEverything(user)) throw forbidden('Only an admin can reassign a product');
+        const next = body.owner_id == null ? null : Number(body.owner_id);
+        if (next != null && !db.users.some((u) => u.id === next && u.role !== 'customer')) {
+          throw bad('That owner is not a member of staff');
+        }
+        p.owner_id = next;
+      }
       for (const k of ['category_id', 'name', 'description', 'base_price', 'sort_order', 'stock_qty']) {
         if (body[k] !== undefined) p[k] = body[k];
       }
@@ -658,6 +728,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const id = Number(m[1]);
       const p = db.products.find((x) => x.id === id);
       if (!p) throw notFound('Product not found');
+      requireOwnership(user, p);
       // Keep order history readable; hide it from the menu instead.
       if (db.orderItems.some((i) => i.product_id === id)) {
         p.is_active = 0;
@@ -892,6 +963,9 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           order_id: id,
           product_id: item.product_id,
           product_name: item.product_name,
+          // Snapshotted, so reassigning a product later does not rewrite who
+          // earned what last month.
+          owner_id: db.products.find((p) => p.id === item.product_id)?.owner_id ?? null,
           quantity: item.quantity,
           unit_base_price: item.unit_base_price,
           unit_options_price: item.unit_options_price,
@@ -928,10 +1002,11 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
      */
     ['GET', /^\/orders\/pulse$/, async (m, body, user) => {
       requireRole(user, 'admin', 'manager');
+      const seen = db.orders.filter((o) => canSeeOrder(user, o.id));
       return {
         rev,
-        orders: db.orders.length,
-        open: db.orders.filter((o) => !['completed', 'cancelled'].includes(o.status)).length,
+        orders: seen.length,
+        open: seen.filter((o) => !['completed', 'cancelled'].includes(o.status)).length,
       };
     }],
 
@@ -939,6 +1014,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireRole(user, 'admin', 'manager');
       const orders = db.orders
         .filter((o) => !['completed', 'cancelled'].includes(o.status))
+        .filter((o) => canSeeOrder(user, o.id))
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
         .map((o) => {
           const d = deliveryForOrder(o.id);
@@ -997,7 +1073,8 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     ['GET', /^\/orders\/(\d+)$/, async (m, body, user) => {
       const order = loadOrder(m[1]);
       if (!order) throw notFound('Order not found');
-      if (!isStaff(user) && (!user || order.customer_id !== user.id)) {
+      if (isStaff(user)) requireOrderAccess(user, order.id);
+      else if (!user || order.customer_id !== user.id) {
         throw forbidden('That is not your order');
       }
       return order;
@@ -1012,7 +1089,9 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const payment = query.get('payment_status');
       const search = (query.get('search') ?? '').toLowerCase();
 
-      let rows = db.orders.filter((o) => (isStaff(user) ? true : o.customer_id === user.id));
+      let rows = db.orders.filter((o) => (isStaff(user)
+        ? canSeeOrder(user, o.id)
+        : o.customer_id === user.id));
       if (statuses.length) rows = rows.filter((o) => statuses.includes(o.status));
       if (type) rows = rows.filter((o) => o.fulfillment_type === type);
       // Cancelled orders are not debts, so an unpaid filter leaves them out.
@@ -1463,6 +1542,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         name: body.name,
         phone: body.phone ?? null,
         role: body.role,
+        manages_all_products: Boolean(body.manages_all_products),
         is_active: 1,
         created_at: nowIso(),
       };
@@ -1484,6 +1564,9 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       }
 
       if (body.email !== undefined) target.email = changeEmail(target, body.email);
+      if (body.manages_all_products !== undefined) {
+        target.manages_all_products = Boolean(body.manages_all_products);
+      }
       if (body.phone !== undefined) assertPhoneFree(body.phone, target.id);
       for (const k of ['name', 'phone', 'role']) if (body[k] !== undefined) target[k] = body[k];
       if (body.is_active !== undefined) target.is_active = body.is_active ? 1 : 0;
@@ -1611,10 +1694,34 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       const days = Math.min(365, Math.max(1, Number(query.get('days') ?? 30)));
       const since = Date.now() - days * 86_400_000;
 
-      const inWindow = db.orders.filter((o) => new Date(o.created_at).getTime() >= since);
+      /**
+       * Whose figures these are.
+       *
+       * A seller sees their own and cannot ask for anybody else's. Somebody
+       * who runs the whole shop sees everything, or one seller at a time by
+       * passing ?owner=<id>.
+       */
+      const askedFor = query.get('owner');
+      let scopeTo = null;
+      if (managesEverything(user)) {
+        scopeTo = askedFor ? Number(askedFor) : null;
+      } else {
+        scopeTo = user.id;
+        if (askedFor && Number(askedFor) !== user.id) {
+          throw forbidden('You can only see your own figures');
+        }
+      }
+
+      const visible = (o) => scopeTo == null || ownerOfOrder(o.id) === scopeTo;
+
+      const inWindow = db.orders
+        .filter((o) => new Date(o.created_at).getTime() >= since)
+        .filter(visible);
       const counted = inWindow.filter((o) => o.status !== 'cancelled');
       const todayKey = new Date().toDateString();
-      const todays = db.orders.filter((o) => new Date(o.created_at).toDateString() === todayKey);
+      const todays = db.orders
+        .filter((o) => new Date(o.created_at).toDateString() === todayKey)
+        .filter(visible);
 
       const byDay = new Map();
       for (const o of inWindow) {
@@ -1660,7 +1767,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
        */
       const owing = db.orders.filter(
         (o) => o.payment_status !== 'paid' && o.status !== 'cancelled',
-      );
+      ).filter(visible);
       const oldestOwing = owing.reduce(
         (oldest, o) => (oldest === null || new Date(o.created_at) < new Date(oldest) ? o.created_at : oldest),
         null,
@@ -1684,7 +1791,33 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
             ? round2(counted.reduce((s, o) => s + o.total, 0) / counted.length)
             : 0,
         },
-        open_orders: db.orders.filter((o) => !['completed', 'cancelled'].includes(o.status)).length,
+        open_orders: db.orders
+          .filter((o) => !['completed', 'cancelled'].includes(o.status))
+          .filter(visible).length,
+        // Only shown to someone who can see everybody; a seller asking for
+        // their own figures has nothing to compare against.
+        by_owner: managesEverything(user) && scopeTo == null
+          ? (() => {
+            const rows = new Map();
+            for (const o of counted) {
+              const owner = ownerOfOrder(o.id);
+              const key = owner ?? 0;
+              const row = rows.get(key) ?? {
+                owner_id: owner,
+                owner_name: owner == null
+                  ? 'Mixed or unassigned'
+                  : db.users.find((u) => u.id === owner)?.name ?? `User ${owner}`,
+                orders: 0,
+                revenue: 0,
+              };
+              row.orders += 1;
+              row.revenue = round2(row.revenue + o.total);
+              rows.set(key, row);
+            }
+            return [...rows.values()].sort((a, b) => b.revenue - a.revenue);
+          })()
+          : [],
+        scoped_to: scopeTo,
         by_status: [...statusTotals].map(([status, n]) => ({ status, n })),
         daily: [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day)),
         top_products: [...productTotals.values()].sort((a, b) => b.qty - a.qty).slice(0, 10),

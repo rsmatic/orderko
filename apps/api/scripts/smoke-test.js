@@ -987,6 +987,166 @@ async function main() {
     (await call('GET', '/catalog/menu', { token: managerToken }))
       .body.products.find((p) => p.id === coldBrew.id)?.track_stock === 0);
 
+    // ------------------------------------------------ two sellers, one shop
+  section('Sellers');
+
+  // Two sellers who should never see each other's work.
+  const makeSeller = async (email, name) => {
+    let r = await call('POST', '/admin/users', {
+      token: adminToken,
+      body: { name, email, password: PASSWORD, role: 'manager', manages_all_products: false },
+    });
+    if (r.status === 409) {
+      const list = await call('GET', '/admin/users?limit=200', { token: adminToken });
+      const found = list.body.users.find((u) => u.email === email);
+      await call('PATCH', `/admin/users/${found.id}`, {
+        token: adminToken, body: { manages_all_products: false },
+      });
+      r = { status: 201, body: found };
+    }
+    return r.body;
+  };
+
+  const suman = await makeSeller('smoke-suman@orderko.test', 'Suman Seller');
+  const crinkle = await makeSeller('smoke-crinkle@orderko.test', 'Crinkle Seller');
+  check('two sellers exist', Boolean(suman?.id && crinkle?.id),
+    JSON.stringify([suman?.id, crinkle?.id]));
+  check('neither runs the whole shop',
+    suman.manages_all_products === false && crinkle.manages_all_products === false,
+    JSON.stringify([suman.manages_all_products, crinkle.manages_all_products]));
+
+  const sumanToken = await login('smoke-suman@orderko.test');
+  const crinkleToken = await login('smoke-crinkle@orderko.test');
+
+  const cat = (await call('GET', '/catalog/menu', { token: adminToken })).body.categories[0].id;
+  const mkProduct = (token, name, owner) => call('POST', '/catalog/products', {
+    token,
+    body: { name, category_id: cat, base_price: 60, ...(owner ? { owner_id: owner } : {}) },
+  });
+
+  const sumanProduct = await mkProduct(sumanToken, `Suman ${Date.now()}`);
+  const crinkleProduct = await mkProduct(crinkleToken, `Crinkles ${Date.now()}`);
+  check('a seller can add their own product', sumanProduct.status === 201, sumanProduct.body?.error);
+  check('and it belongs to them', sumanProduct.body?.owner_id === suman.id,
+    `${sumanProduct.body?.owner_id} vs ${suman.id}`);
+
+  // The menu each seller manages.
+  const shelfOf = async (token) => (await call('GET', '/catalog/menu', { token })).body.products;
+  const sumanShelf = await shelfOf(sumanToken);
+  check('a seller sees their own product', sumanShelf.some((p) => p.id === sumanProduct.body.id));
+  check('and not the other seller\'s',
+    !sumanShelf.some((p) => p.id === crinkleProduct.body.id),
+    'crinkles visible to the suman seller');
+  check('an admin sees both',
+    (await shelfOf(adminToken)).filter((p) =>
+      [sumanProduct.body.id, crinkleProduct.body.id].includes(p.id)).length === 2);
+
+  // Customers shop the whole store; the separation is between sellers.
+  const publicMenu = (await call('GET', '/catalog/menu')).body.products;
+  check('a customer sees both sellers\' products',
+    [sumanProduct.body.id, crinkleProduct.body.id]
+      .every((id) => publicMenu.some((p) => p.id === id)),
+    'the storefront is hiding a seller');
+
+  check('a seller cannot edit the other seller\'s product',
+    (await call('PATCH', `/catalog/products/${crinkleProduct.body.id}`, {
+      token: sumanToken, body: { base_price: 1 },
+    })).status === 403);
+  check('nor reassign their own to someone else',
+    (await call('PATCH', `/catalog/products/${sumanProduct.body.id}`, {
+      token: sumanToken, body: { owner_id: crinkle.id },
+    })).status === 403);
+  check('an admin can reassign',
+    (await call('PATCH', `/catalog/products/${sumanProduct.body.id}`, {
+      token: adminToken, body: { owner_id: suman.id },
+    })).status === 200);
+
+  // Orders: a seller sees only the ones made entirely of their own items.
+  const orderOf = (productId, name, phone) => call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: productId, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'pickup', contact_name: name, contact_phone: phone,
+    },
+  });
+  const pureSuman = await orderOf(sumanProduct.body.id, 'Suman Buyer', '+639170000020');
+  const pureCrinkle = await orderOf(crinkleProduct.body.id, 'Crinkle Buyer', '+639170000021');
+  check('a pure order is placed for each seller',
+    pureSuman.status === 201 && pureCrinkle.status === 201,
+    JSON.stringify([pureSuman.body?.error, pureCrinkle.body?.error]));
+
+  const mixed = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [
+        { product_id: sumanProduct.body.id, quantity: 2, option_ids: [] },
+        { product_id: crinkleProduct.body.id, quantity: 2, option_ids: [] },
+      ],
+      fulfillment_type: 'pickup', contact_name: 'Bought Both', contact_phone: '+639170000022',
+    },
+  });
+  check('a customer can still buy from both at once', mixed.status === 201,
+    JSON.stringify(mixed.body?.error ?? mixed.body?.details));
+
+  check('a seller can open their own order',
+    (await call('GET', `/orders/${pureSuman.body.id}`, { token: sumanToken })).status === 200);
+  check('but not the other seller\'s',
+    (await call('GET', `/orders/${pureCrinkle.body.id}`, { token: sumanToken })).status === 403);
+  check('and not a mixed one',
+    (await call('GET', `/orders/${mixed.body.id}`, { token: sumanToken })).status === 403);
+  check('an admin can open the mixed one',
+    (await call('GET', `/orders/${mixed.body.id}`, { token: adminToken })).status === 200);
+
+  const listFor = async (token) =>
+    (await call('GET', '/orders?limit=200', { token })).body.orders.map((o) => o.id);
+  const sumanList = await listFor(sumanToken);
+  check('the order list shows only their own',
+    sumanList.includes(pureSuman.body.id)
+      && !sumanList.includes(pureCrinkle.body.id)
+      && !sumanList.includes(mixed.body.id),
+    JSON.stringify(sumanList));
+
+  const sumanQueue = (await call('GET', '/orders/queue', { token: sumanToken })).body.orders.map((o) => o.id);
+  check('so does the kitchen board',
+    sumanQueue.includes(pureSuman.body.id) && !sumanQueue.includes(pureCrinkle.body.id),
+    JSON.stringify(sumanQueue));
+
+  // Reports.
+  const sumanStats = (await call('GET', '/admin/stats?days=30', { token: sumanToken })).body;
+  const adminStats = (await call('GET', '/admin/stats?days=30', { token: adminToken })).body;
+  check('a seller sees fewer orders than the admin',
+    sumanStats.period.orders < adminStats.period.orders,
+    `${sumanStats.period.orders} vs ${adminStats.period.orders}`);
+  check('and is scoped to themselves', sumanStats.scoped_to === suman.id,
+    String(sumanStats.scoped_to));
+  check('a seller cannot ask for another seller\'s figures',
+    (await call('GET', `/admin/stats?days=30&owner=${crinkle.id}`, { token: sumanToken })).status === 403);
+  check('an admin gets a breakdown per seller',
+    (adminStats.by_owner ?? []).some((r) => r.owner_id === suman.id),
+    JSON.stringify((adminStats.by_owner ?? []).map((r) => r.owner_name)));
+  check('including a row for the mixed ones',
+    (adminStats.by_owner ?? []).some((r) => r.owner_id === null),
+    'no row for mixed or unassigned');
+
+  const scoped = (await call('GET', `/admin/stats?days=30&owner=${suman.id}`, { token: adminToken })).body;
+  check('and can look at one seller at a time',
+    scoped.period.orders === sumanStats.period.orders,
+    `${scoped.period.orders} vs ${sumanStats.period.orders}`);
+
+  // Tidy up, so re-running the suite starts from the same shop.
+  for (const id of [pureSuman.body.id, pureCrinkle.body.id, mixed.body.id]) {
+    await call('DELETE', `/orders/${id}`, { token: adminToken });
+  }
+  for (const p of [sumanProduct.body.id, crinkleProduct.body.id]) {
+    await call('DELETE', `/catalog/products/${p}`, { token: adminToken });
+  }
+  for (const u of [suman.id, crinkle.id]) {
+    await call('DELETE', `/admin/users/${u}`, { token: adminToken });
+  }
+  check('the shop is left as it was found',
+    !(await call('GET', '/admin/users?limit=200', { token: adminToken }))
+      .body.users.some((u) => u.email === 'smoke-suman@orderko.test'));
+
     // --------------------------------------- the shop's own front page
   section('Front page wording');
 
