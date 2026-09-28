@@ -102,6 +102,67 @@ async function main() {
   check('anonymous cannot read the kitchen queue', anonAtQueue.status === 401, `got ${anonAtQueue.status}`);
 
   // -------------------------------------------------------------- catalog
+  section('Categories');
+
+  const cats = (await call('GET', '/catalog/menu', { token: managerToken })).body.categories;
+  const first = cats[0];
+  const wasCalled = first.name;
+
+  const renamed = await call('PATCH', `/catalog/categories/${first.id}`, {
+    token: managerToken, body: { name: '  Merienda  ' },
+  });
+  check('a category can be renamed', renamed.status === 200, renamed.body?.error);
+  check('and the name is trimmed', renamed.body?.name === 'Merienda',
+    JSON.stringify(renamed.body?.name));
+  check('the storefront shows the new name',
+    (await call('GET', '/catalog/menu')).body.categories.some((c) => c.name === 'Merienda'));
+
+  // Renaming must never move anything between categories.
+  check('the items stayed where they were',
+    (await call('GET', '/catalog/menu', { token: managerToken })).body.products
+      .filter((p) => p.category_id === first.id).length
+      === (await call('GET', '/catalog/menu', { token: managerToken })).body.products
+        .filter((p) => p.category_id === first.id).length);
+
+  check('an empty name is refused',
+    (await call('PATCH', `/catalog/categories/${first.id}`, {
+      token: managerToken, body: { name: '   ' },
+    })).status === 400);
+  check('and the old name survived that',
+    (await call('GET', '/catalog/menu')).body.categories
+      .find((c) => c.id === first.id)?.name === 'Merienda');
+
+  check('a customer cannot rename one',
+    (await call('PATCH', `/catalog/categories/${first.id}`, {
+      token: customerToken, body: { name: 'Mine now' },
+    })).status === 403);
+
+  check('the rename is in the activity log',
+    ((await call('GET', '/admin/audit?limit=20', { token: adminToken })).body?.entries ?? [])
+      .some((a) => a.action === 'category.update'),
+    'no category.update entry');
+
+  const made = await call('POST', '/catalog/categories', {
+    token: managerToken, body: { name: 'Pasalubong', sort_order: 99 },
+  });
+  check('a category can be added', made.status === 201, made.body?.error);
+
+  // Hidden rather than deleted: a category with items in it would orphan them.
+  check('a category can be hidden',
+    (await call('PATCH', `/catalog/categories/${made.body.id}`, {
+      token: managerToken, body: { is_active: false },
+    })).status === 200);
+  check('and a hidden one leaves the storefront',
+    !(await call('GET', '/catalog/menu')).body.categories.some((c) => c.id === made.body.id));
+
+  // Put the name back so the suite can run again.
+  await call('PATCH', `/catalog/categories/${first.id}`, {
+    token: managerToken, body: { name: wasCalled },
+  });
+  check('the original name goes back',
+    (await call('GET', '/catalog/menu')).body.categories
+      .find((c) => c.id === first.id)?.name === wasCalled);
+
   section('Product pictures');
 
   // Pasting the address bar from a Google Images search is the usual mistake,

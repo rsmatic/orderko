@@ -5,6 +5,7 @@ import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Modal, Field, Spinner, Empty } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import ImagePicker from '../../components/ImagePicker';
+import CategoryManager from '../../components/CategoryManager';
 
 const emptyProduct = (categories) => ({
   category_id: categories[0]?.id ?? 1,
@@ -84,7 +85,7 @@ export default function MenuManager() {
           >
             + New item
           </button>
-        ) : (
+        ) : tab === 'options' ? (
           <button
             type="button"
             className="btn btn-sm btn-primary"
@@ -92,7 +93,7 @@ export default function MenuManager() {
           >
             + New option
           </button>
-        )}
+        ) : null}
       </DashHeader>
 
       <div className="dash-body stack">
@@ -105,6 +106,9 @@ export default function MenuManager() {
           </button>
           <button type="button" className="cat-chip" aria-pressed={tab === 'options'} onClick={() => setTab('options')}>
             Add-ons & choices ({menu.option_groups.reduce((n, g) => n + g.options.length, 0)})
+          </button>
+          <button type="button" className="cat-chip" aria-pressed={tab === 'categories'} onClick={() => setTab('categories')}>
+            Categories ({menu.categories.length})
           </button>
         </div>
 
@@ -172,6 +176,15 @@ export default function MenuManager() {
               </table>
             </div>
           </div>
+        ) : tab === 'categories' ? (
+          <div className="panel"><div className="panel-body">
+            <CategoryManager
+              categories={menu.categories}
+              products={menu.products}
+              onChanged={load}
+              onError={setError}
+            />
+          </div></div>
         ) : (
           <div className="stack">
             {menu.option_groups.map((group) => (

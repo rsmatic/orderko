@@ -183,6 +183,11 @@ Everything a manager can do, plus:
   and after totals, and an order already marked paid goes back to unpaid if
   the total rises — a larger order silently marked paid is how the
   difference gets lost.
+- **Categories** — the tabs above the menu, renamed and added from
+  **Menu & prices → Categories**. The API could always do this and the
+  dashboard never asked, so a category named for what it used to hold stayed
+  that way. Renaming never moves an item. There is no delete: one with items
+  in it would orphan them, so an unused category is hidden instead.
 - **Activity log** — every staff change, who made it and when.
 - **Delete an order** — admin only, from the order sheet. Not the same as
   cancelling: cancelling records that an order was called off and leaves it

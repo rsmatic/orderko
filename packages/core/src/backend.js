@@ -1013,9 +1013,17 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireRole(user, 'admin', 'manager');
       const c = db.categories.find((x) => x.id === Number(m[1]));
       if (!c) throw notFound('Category not found');
-      if (body.name !== undefined) c.name = body.name;
+      if (body.name !== undefined) {
+        const name = String(body.name).trim();
+        if (!name) throw bad('A category needs a name');
+        if (name.length > 60) throw bad('That category name is too long');
+        c.name = name;
+      }
       if (body.sort_order !== undefined) c.sort_order = body.sort_order;
       if (body.is_active !== undefined) c.is_active = body.is_active ? 1 : 0;
+      // Renaming a category changes what every customer sees above the menu,
+      // so it belongs in the log with the rest of the menu changes.
+      audit(user, 'category.update', 'category', c.id, body);
       return c;
     }],
 
