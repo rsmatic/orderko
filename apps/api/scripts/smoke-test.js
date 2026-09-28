@@ -1295,6 +1295,69 @@ async function main() {
     sumanOrder.body?.seller?.pickup_address === '21 Mabini Street, Carmona, Cavite');
   await call('DELETE', `/orders/${sumanOrder.body.id}`, { token: adminToken });
 
+  // ----------------------------------- each seller picks their own carriers
+  await call('PUT', `/sellers/${suman.id}/profile`, {
+    token: sumanToken,
+    body: { grab_delivery_enabled: false, own_delivery_enabled: true, own_delivery_fee: 40 },
+  });
+  await call('PUT', `/sellers/${crinkle.id}/profile`, {
+    token: adminToken,
+    body: { grab_delivery_enabled: true, own_delivery_enabled: false },
+  });
+
+  const sumanOnly = (await call('GET', `/sellers/${suman.id}/profile`)).body;
+  check('a seller can switch Grab off for themselves',
+    sumanOnly.grab_delivery_enabled === false && sumanOnly.own_delivery_enabled === true,
+    JSON.stringify([sumanOnly.grab_delivery_enabled, sumanOnly.own_delivery_enabled]));
+
+  const deliverTo = { delivery_lat: 14.3200, delivery_lng: 121.0600 };
+  const sumanCarrier = (carrier) => call('POST', '/orders/quote', {
+    body: {
+      items: [{ product_id: sumanProduct.body.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'delivery', delivery_carrier: carrier, ...deliverTo,
+    },
+  });
+  check('their own delivery quotes', (await sumanCarrier('own')).status === 200);
+  check('and Grab is refused for them', (await sumanCarrier('grab')).status === 400);
+
+  // The other seller, in the same shop, has the opposite answer.
+  const crinkleCarrier = (carrier) => call('POST', '/orders/quote', {
+    body: {
+      items: [{ product_id: crinkleProduct.body.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'delivery', delivery_carrier: carrier,
+      delivery_lat: 14.5507, delivery_lng: 121.0494,
+    },
+  });
+  check('the other seller still has Grab', (await crinkleCarrier('grab')).status === 200);
+  check('and their own delivery is refused', (await crinkleCarrier('own')).status === 400);
+
+  check('the storefront is told each seller\'s carriers',
+    (await call('GET', '/catalog/menu')).body.sellers
+      .some((x) => x.id === suman.id && x.grab_delivery_enabled === false),
+    'the menu does not carry per-seller carriers');
+
+  // The shop is a seller too, for whatever nobody owns.
+  const shopCarriers = await call('PUT', '/sellers/shop/profile', {
+    token: adminToken, body: { own_delivery_enabled: true, own_delivery_fee: 25 },
+  });
+  check('an admin can set the shop\'s own details', shopCarriers.status === 200,
+    shopCarriers.body?.error);
+  check('a manager cannot speak for the shop',
+    (await call('PUT', '/sellers/shop/profile', {
+      token: sumanToken, body: { own_delivery_fee: 1 },
+    })).status === 403);
+  check('the shop keeps what was set',
+    (await call('GET', '/sellers/shop/profile')).body?.own_delivery_fee === 25);
+
+  // Cleared rather than set to false, so the shop goes back to inheriting
+  // and the rest of the suite still controls it through /admin/settings.
+  await call('PUT', '/sellers/shop/profile', {
+    token: adminToken,
+    body: { grab_delivery_enabled: '', own_delivery_enabled: '', own_delivery_fee: '' },
+  });
+  check('the shop goes back to inheriting',
+    (await call('GET', '/sellers/shop/profile')).body?.own?.own_delivery_enabled === '');
+
   // Tidy up, so re-running the suite starts from the same shop.
   for (const id of [pureSuman.body.id, pureCrinkle.body.id]) {
     await call('DELETE', `/orders/${id}`, { token: adminToken });

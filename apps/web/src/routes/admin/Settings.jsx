@@ -28,21 +28,10 @@ export default function Settings() {
           hero_cta: s.hero_cta ?? '',
           show_included_label: s.show_included_label !== false,
           google_client_id: s.google_client_id ?? '',
-          gcash_number: s.gcash_number ?? '',
-          gcash_name: s.gcash_name ?? '',
-          gcash_qr_url: s.gcash_qr_url ?? '',
           currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
-          pickup_address: s.pickup_address ?? '',
-          pickup_lat: String(s.pickup_lat ?? ''),
-          pickup_lng: String(s.pickup_lng ?? ''),
-          pickup_phone: s.pickup_phone ?? '',
           min_order_total: String(s.min_order_total ?? 0),
           delivery_enabled: Boolean(s.delivery_enabled),
-          grab_delivery_enabled: s.grab_delivery_enabled ?? true,
-          own_delivery_enabled: s.own_delivery_enabled ?? false,
-          own_delivery_fee: String(s.own_delivery_fee ?? 0),
-          own_delivery_fee_per_km: String(s.own_delivery_fee_per_km ?? 0),
           max_delivery_km: String(s.max_delivery_km ?? 0),
           grab_mode: s.grab_mode ?? res.grab_mode ?? 'sim',
           order_lead_mins: String(s.order_lead_mins ?? 20),
@@ -74,21 +63,10 @@ export default function Settings() {
         hero_cta: form.hero_cta.trim(),
         show_included_label: form.show_included_label,
         google_client_id: form.google_client_id.trim(),
-        gcash_number: form.gcash_number.trim(),
-        gcash_name: form.gcash_name.trim(),
-        gcash_qr_url: form.gcash_qr_url,
         currency: form.currency.toUpperCase(),
         tax_rate: Number(form.tax_rate) / 100,
-        pickup_address: form.pickup_address,
-        pickup_lat: Number(form.pickup_lat),
-        pickup_lng: Number(form.pickup_lng),
-        pickup_phone: form.pickup_phone,
         min_order_total: Number(form.min_order_total),
         delivery_enabled: form.delivery_enabled,
-        grab_delivery_enabled: form.grab_delivery_enabled,
-        own_delivery_enabled: form.own_delivery_enabled,
-        own_delivery_fee: Number(form.own_delivery_fee),
-        own_delivery_fee_per_km: Number(form.own_delivery_fee_per_km),
         max_delivery_km: Number(form.max_delivery_km),
         grab_mode: form.grab_mode,
         order_lead_mins: Number(form.order_lead_mins),
@@ -226,102 +204,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="panel">
-          <div className="panel-head">
-            <h3>Default pickup point</h3>
-            <span className="tiny faint">for items the shop sells itself</span>
-          </div>
-          <div className="panel-body stack">
-            <div className="alert alert-info small">
-              Each seller can set their own pickup point and GCash under
-              <strong> People → Selling as</strong>. This is what the shop uses
-              for its own items, and what a seller falls back to until they
-              fill in theirs.
-            </div>
-            <Field label="Address">
-              <input className="input" value={form.pickup_address} onChange={(e) => set({ pickup_address: e.target.value })} />
-            </Field>
-            <div className="grid grid-3">
-              <Field label="Latitude">
-                <input
-                  className="input" type="number" step="0.0000001"
-                  value={form.pickup_lat} onChange={(e) => set({ pickup_lat: e.target.value })}
-                />
-              </Field>
-              <Field label="Longitude">
-                <input
-                  className="input" type="number" step="0.0000001"
-                  value={form.pickup_lng} onChange={(e) => set({ pickup_lng: e.target.value })}
-                />
-              </Field>
-              <Field label="Phone for the driver">
-                <input className="input" type="tel" value={form.pickup_phone} onChange={(e) => set({ pickup_phone: e.target.value })} />
-              </Field>
-            </div>
-          </div>
-        </section>
 
-        <section className="panel">
-          <div className="panel-head">
-            <h3>Default GCash</h3>
-            <span className={`badge ${form.gcash_number ? 'badge-leaf' : 'badge-neutral'}`}>
-              {form.gcash_number ? 'Offered at checkout' : 'Off'}
-            </span>
-          </div>
-          <div className="panel-body stack">
-            <Field
-              label="GCash mobile number"
-              hint="Where customers send payment. Leave it empty to take GCash off the checkout. Every visitor sees this number — that is what it is for — so use the one you want to be paid on."
-            >
-              <input
-                className="input" type="tel" inputMode="tel"
-                placeholder="0915 386 8303"
-                value={form.gcash_number}
-                onChange={(e) => set({ gcash_number: e.target.value })}
-              />
-            </Field>
-            <Field
-              label="Account name"
-              hint="Shown under the number so customers know the name they should see in GCash. Defaults to the shop name."
-            >
-              <input
-                className="input"
-                placeholder={form.shop_name}
-                value={form.gcash_name}
-                onChange={(e) => set({ gcash_name: e.target.value })}
-              />
-            </Field>
-            <Field label="Your GCash QR code">
-              <ImagePicker
-                value={form.gcash_qr_url}
-                onChange={(v) => set({ gcash_qr_url: v })}
-                shape="qr"
-                hint="Optional. Customers scan this instead of typing the number."
-              />
-            </Field>
-            <details className="small muted">
-              <summary style={{ cursor: 'pointer' }}>Where do I get my QR code?</summary>
-              <ol style={{ margin: '.5rem 0 0', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
-                <li>Open the <strong>GCash app</strong>.</li>
-                <li>Tap your profile, then <strong>QR code</strong> (a business account calls it <strong>QR Ph</strong>).</li>
-                <li><strong>Download</strong> or screenshot it.</li>
-                <li>Upload that picture here.</li>
-              </ol>
-              <p style={{ marginBottom: 0 }}>
-                It has to be the picture GCash gives you. A QR code cannot be built
-                from a mobile number — a real one carries a payment payload that
-                only GCash can issue, so anything generated here would scan as
-                plain text and not open a payment.
-              </p>
-            </details>
-
-            <div className="alert alert-info small">
-              Nothing is charged automatically. The customer pays in their own
-              GCash app and the order stays <strong>unpaid</strong> until you open
-              it and press <strong>Mark paid</strong>.
-            </div>
-          </div>
-        </section>
 
         <section className="panel">
           <div className="panel-head">
@@ -373,63 +256,12 @@ export default function Settings() {
               Off, the shop is pickup only and the delivery choice disappears.
             </span>
 
-            <Field label="How customers can get it" hint="Pickup is always offered. Turn on either delivery option, or both — the customer chooses at checkout.">
-              <div className="stack-s">
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={form.grab_delivery_enabled}
-                    disabled={!form.delivery_enabled}
-                    onChange={(e) => set({ grab_delivery_enabled: e.target.checked })}
-                  />
-                  🚴 Grab delivery — a rider is booked and Grab sets the fare
-                </label>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={form.own_delivery_enabled}
-                    disabled={!form.delivery_enabled}
-                    onChange={(e) => set({ own_delivery_enabled: e.target.checked })}
-                  />
-                  🛵 Delivery (COD) — you deliver it, at the fee below
-                </label>
-              </div>
-            </Field>
+            <div className="alert alert-info small">
+              Whether an item can be delivered, and by whom, is set per seller
+              under <strong>People → Selling as</strong> — including the shop
+              itself, for items with no seller assigned.
+            </div>
 
-            {form.delivery_enabled && !form.grab_delivery_enabled && !form.own_delivery_enabled ? (
-              <div className="alert alert-warn small">
-                Delivery is on but neither option is, so checkout offers pickup
-                only. Turn one on, or switch delivery off to say so plainly.
-              </div>
-            ) : null}
-
-            {form.own_delivery_enabled ? (
-              <>
-              {Number(form.own_delivery_fee) === 0 && Number(form.own_delivery_fee_per_km) === 0 ? (
-                <div className="alert alert-warn small">
-                  Both fees are zero, so <strong>your delivery is free</strong>. That is
-                  a fine choice, but an easy one to make by accident — a shop upgrading
-                  from an older version starts at zero rather than at a default price.
-                </div>
-              ) : null}
-              <div className="grid grid-2">
-                <Field label="Your delivery fee" hint="Charged on every order you deliver. Grab orders are unaffected.">
-                  <input
-                    className="input" type="number" min="0" step="0.01"
-                    value={form.own_delivery_fee}
-                    onChange={(e) => set({ own_delivery_fee: e.target.value })}
-                  />
-                </Field>
-                <Field label="Extra per km" hint="Added on top, times the straight-line distance. Leave at 0 for one flat fee everywhere.">
-                  <input
-                    className="input" type="number" min="0" step="0.01"
-                    value={form.own_delivery_fee_per_km}
-                    onChange={(e) => set({ own_delivery_fee_per_km: e.target.value })}
-                  />
-                </Field>
-              </div>
-              </>
-            ) : null}
 
             <Field
               label="Delivery radius (km)"
@@ -446,8 +278,10 @@ export default function Settings() {
             {/* Meaningless when Grab is not carrying anything, and an
                 explanation left behind would describe a control that is no
                 longer on the page. */}
-            {form.grab_delivery_enabled ? (
-              <>
+            {/* Whether a seller offers Grab is theirs to choose; whether this
+                shop books real riders or simulated ones is the same for
+                everyone, because the credentials are one set in the API. */}
+            <>
             <label className="switch">
               <input
                 type="checkbox"
@@ -478,8 +312,7 @@ export default function Settings() {
                 {' '}button on an order.
               </div>
             )}
-              </>
-            ) : null}
+            </>
           </div>
         </section>
 

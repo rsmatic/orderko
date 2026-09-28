@@ -25,7 +25,13 @@ export default function SellerProfile({ userId, onSaved, onError, controls }) {
       .get(`/sellers/${userId}/profile`, { signal: controller.signal })
       .then((res) => {
         setProfile(res);
-        setForm({ ...res.own });
+        setForm({
+          ...res.own,
+          // A checkbox cannot show "inherited", so these start at whatever is
+          // in force and are always saved as a plain yes or no.
+          grab_delivery_enabled: res.grab_delivery_enabled,
+          own_delivery_enabled: res.own_delivery_enabled,
+        });
       })
       .catch((err) => { if (err.name !== 'AbortError') onError(err.message); });
     return () => controller.abort();
@@ -49,7 +55,11 @@ export default function SellerProfile({ userId, onSaved, onError, controls }) {
     try {
       const saved = await api.put(`/sellers/${userId}/profile`, form);
       setProfile(saved);
-      setForm({ ...saved.own });
+      setForm({
+        ...saved.own,
+        grab_delivery_enabled: saved.grab_delivery_enabled,
+        own_delivery_enabled: saved.own_delivery_enabled,
+      });
       onSaved('Seller details saved');
     } catch (err) {
       onError(err.message);
@@ -157,7 +167,38 @@ export default function SellerProfile({ userId, onSaved, onError, controls }) {
       </section>
 
       <section className="panel">
-        <div className="panel-head"><h3>Their delivery charge</h3></div>
+        <div className="panel-head">
+          <h3>How they deliver</h3>
+          <span className="tiny faint">pickup is always offered</span>
+        </div>
+        <div className="panel-body stack">
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(form.grab_delivery_enabled)}
+              onChange={(e) => set({ grab_delivery_enabled: e.target.checked })}
+            />
+            🚴 Grab delivery — a rider is booked and Grab sets the fare
+          </label>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={Boolean(form.own_delivery_enabled)}
+              onChange={(e) => set({ own_delivery_enabled: e.target.checked })}
+            />
+            🛵 Delivery (COD) — they deliver it, at the fee below
+          </label>
+          {!form.grab_delivery_enabled && !form.own_delivery_enabled ? (
+            <div className="alert alert-warn small">
+              Neither is on, so their items are pickup only.
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {form.own_delivery_enabled ? (
+      <section className="panel">
+        <div className="panel-head"><h3>What they charge to deliver</h3></div>
         <div className="panel-body grid grid-2">
           <Field label="Delivery fee" hint="Only when the shop delivers its own orders. Blank uses the shop's.">
             <input
@@ -177,6 +218,8 @@ export default function SellerProfile({ userId, onSaved, onError, controls }) {
           </Field>
         </div>
       </section>
+
+      ) : null}
 
 
     </div>

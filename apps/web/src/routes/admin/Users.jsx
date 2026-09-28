@@ -20,6 +20,7 @@ export default function Users() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [editingShop, setEditingShop] = useState(false);
 
   const load = useCallback(
     (signal) => {
@@ -74,6 +75,22 @@ export default function Users() {
       <div className="dash-body stack">
         {error ? <Alert kind="error" onDismiss={() => setError('')}>{error}</Alert> : null}
         {notice ? <Alert kind="ok">{notice}</Alert> : null}
+
+        {/* Anything with no seller is sold by the shop, and it needs the
+            same details as anybody else: somewhere to collect, somewhere to
+            be paid, a way to deliver. It is not a person, so it is not in
+            the list below. */}
+        <div className="card card-pad spread">
+          <div>
+            <div className="strong">The shop itself</div>
+            <div className="small muted">
+              Pickup, GCash and delivery for items with no seller assigned.
+            </div>
+          </div>
+          <button type="button" className="btn btn-sm" onClick={() => setEditingShop(true)}>
+            Selling as
+          </button>
+        </div>
 
         <div className="panel">
           {!data ? (
@@ -140,6 +157,14 @@ export default function Users() {
         </div>
       </div>
 
+      {editingShop ? (
+        <ShopSellerDialog
+          onClose={() => setEditingShop(false)}
+          onSaved={async (msg) => { setEditingShop(false); await load(); setNotice(msg); }}
+          onError={setError}
+        />
+      ) : null}
+
       {deleting ? (
         <DeleteUser
           user={deleting}
@@ -167,6 +192,38 @@ export default function Users() {
  * matters most to whoever is about to press the button — so the dialog says
  * what happens to the orders, and offers the smaller action instead.
  */
+/**
+ * The same panel every seller gets, for the shop that sells whatever nobody
+ * else does.
+ */
+function ShopSellerDialog({ onClose, onSaved, onError }) {
+  const controls = useRef(null);
+  const [, force] = useState(0);
+  return (
+    <Modal
+      title="The shop itself"
+      subtitle="Used for items with no seller assigned"
+      onClose={onClose}
+      width="620px"
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>Close</button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={controls.current?.busy}
+            onClick={async () => { await controls.current?.save?.(); force((n) => n + 1); }}
+          >
+            {controls.current?.busy ? <Spinner /> : 'Save shop details'}
+          </button>
+        </>
+      }
+    >
+      <SellerProfile userId="shop" onSaved={onSaved} onError={onError} controls={controls} />
+    </Modal>
+  );
+}
+
 function DeleteUser({ user, onClose, onDeleted, onError }) {
   const [busy, setBusy] = useState(false);
   const orders = Number(user.order_count) || 0;

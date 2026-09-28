@@ -344,6 +344,8 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           gcash_number: sp.gcash_number,
           gcash_name: sp.gcash_name,
           gcash_qr_url: sp.gcash_qr_url,
+          grab_delivery_enabled: sp.grab_delivery_enabled,
+          own_delivery_enabled: sp.own_delivery_enabled,
         };
       }),
       categories: db.categories
@@ -402,11 +404,12 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
    * Which carriers a customer may choose right now, in the order they are
    * offered. Empty means this shop is pickup only.
    */
-  function enabledCarriers() {
+  function enabledCarriers(seller = null) {
     if (!db.settings.delivery_enabled) return [];
+    const who = seller ?? sellerProfile(null);
     return [
-      (db.settings.grab_delivery_enabled ?? true) ? 'grab' : null,
-      (db.settings.own_delivery_enabled ?? false) ? 'own' : null,
+      who.grab_delivery_enabled ? 'grab' : null,
+      who.own_delivery_enabled ? 'own' : null,
     ].filter(Boolean);
   }
 
@@ -419,8 +422,8 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
    * checkout only shows those, so a request for another one did not come from
    * the checkout.
    */
-  function resolveCarrier(requested) {
-    const running = enabledCarriers();
+  function resolveCarrier(requested, seller = null) {
+    const running = enabledCarriers(seller);
     if (!running.length) throw bad('Delivery is switched off right now');
     if (requested == null || requested === '') return running[0];
     if (!running.includes(requested)) throw bad('That delivery option is not available');
@@ -463,7 +466,13 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     'gcash_number', 'gcash_name', 'gcash_qr_url',
     'pickup_address', 'pickup_lat', 'pickup_lng', 'pickup_phone',
     'own_delivery_fee', 'own_delivery_fee_per_km',
+    // How this seller gets an order to the customer. Their call, not the
+    // shop's: one may have a rider of their own and another may not.
+    'grab_delivery_enabled', 'own_delivery_enabled',
   ];
+
+  /** The two carrier switches are yes/no, and absent means the shop's answer. */
+  const SELLER_FLAGS = ['grab_delivery_enabled', 'own_delivery_enabled'];
 
   /**
    * A seller's details, with the shop's used for anything they have not set.
@@ -496,6 +505,12 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       pickup_phone: pick('pickup_phone'),
       own_delivery_fee: Number(pick('own_delivery_fee') ?? 0),
       own_delivery_fee_per_km: Number(pick('own_delivery_fee_per_km') ?? 0),
+      // A shop that has never touched these delivered with Grab, so that is
+      // what an unanswered switch still means.
+      grab_delivery_enabled: own.grab_delivery_enabled
+        ?? shop.grab_delivery_enabled ?? true,
+      own_delivery_enabled: own.own_delivery_enabled
+        ?? shop.own_delivery_enabled ?? false,
       // What this seller has actually set, and what they would inherit.
       // An editor that saved the merged values back would freeze the shop's
       // settings into the seller, so later changing the shop would stop
@@ -1037,13 +1052,19 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
      * A seller sets their own; an admin may set anyone's. Blank means "use the
      * shop's", which is how a seller is switched back to the house defaults.
      */
-    ['PUT', /^\/sellers\/(\d+)\/profile$/, async (m, body, user) => {
+    ['PUT', /^\/sellers\/(\d+|shop)\/profile$/, async (m, body, user) => {
       requireRole(user, 'admin', 'manager');
-      const id = Number(m[1]);
-      if (!managesEverything(user) && user.id !== id) {
-        throw forbidden('You can only change your own details');
+      // "shop" is the seller behind anything nobody owns. It is not a person,
+      // so only an admin speaks for it.
+      const id = m[1] === 'shop' ? null : Number(m[1]);
+      if (id === null) {
+        requireRole(user, 'admin');
+      } else {
+        if (!managesEverything(user) && user.id !== id) {
+          throw forbidden('You can only change your own details');
+        }
+        if (!db.users.some((u) => u.id === id)) throw notFound('No such seller');
       }
-      if (!db.users.some((u) => u.id === id)) throw notFound('No such seller');
 
       db.sellerProfiles = db.sellerProfiles ?? [];
       const row = db.sellerProfiles.find((p) => p.user_id === id)
@@ -1051,7 +1072,13 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
       for (const k of SELLER_FIELDS) {
         if (body[k] === undefined) continue;
-        if (k === 'gcash_number') {
+        if (SELLER_FLAGS.includes(k)) {
+          // Blank puts the switch back to inheriting, the same as every
+          // other field here. Without it an explicit false would shadow the
+          // shop for ever, with no way in the UI to undo it.
+          if (body[k] === '' || body[k] === null) delete row[k];
+          else row[k] = Boolean(body[k]);
+        } else if (k === 'gcash_number') {
           const typed = String(body[k] ?? '').trim();
           if (typed && !phoneKey(typed)) throw bad('Enter a valid GCash mobile number');
           row[k] = typed;
@@ -1098,7 +1125,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           address: body.delivery_address,
           lat: Number(body.delivery_lat),
           lng: Number(body.delivery_lng),
-        }, resolveCarrier(body.delivery_carrier), seller);
+        }, resolveCarrier(body.delivery_carrier, seller), seller);
       }
 
       const totals = totalsFor({
@@ -1120,6 +1147,8 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           gcash_number: seller.gcash_number,
           gcash_name: seller.gcash_name,
           gcash_qr_url: seller.gcash_qr_url,
+          grab_delivery_enabled: seller.grab_delivery_enabled,
+          own_delivery_enabled: seller.own_delivery_enabled,
         },
         pickup_address: seller.pickup_address,
         order_lead_mins: Number(db.settings.order_lead_mins),
@@ -1130,11 +1159,12 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
     ['POST', /^\/orders$/, async (m, body, user) => {
       // Settled before anything is priced, so the fee and the record agree.
-      const carrier = body.fulfillment_type === 'delivery'
-        ? resolveCarrier(body.delivery_carrier)
-        : null;
-      // Throws if the basket mixes sellers, before anything is written.
+      // Whose basket this is has to be settled first: the carriers on offer
+      // are theirs, not the shop's.
       const seller = sellerProfile(sellerOfItems(body.items));
+      const carrier = body.fulfillment_type === 'delivery'
+        ? resolveCarrier(body.delivery_carrier, seller)
+        : null;
       const paymentMethod = body.payment_method ?? 'cash';
       if (!PAYMENT_METHODS.includes(paymentMethod)) throw bad('Unknown payment method');
       // Taking a GCash order with nowhere to send the money would strand it in

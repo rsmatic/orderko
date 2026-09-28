@@ -118,7 +118,13 @@ Everything a manager can do, plus:
   does not rewrite who earned what last month. Option groups and categories
   stay with admins, since they are shared and one seller editing them would
   change another seller’s products.
-- **Each seller trades as themselves**, set under **People → Selling as**. A seller sets their own pickup
+- **Each seller trades as themselves**, set under **People → Selling as**.
+  Their pickup point, GCash, delivery fee **and which carriers they offer** —
+  Grab, their own delivery, or neither. The shop itself is a seller too, for
+  items nobody owns, and gets the same panel from the top of **People**. Shop
+  settings keeps only what is genuinely shop-wide: the delivery radius, and
+  whether Grab bookings are real or simulated, which comes from one set of
+  credentials in the API. A seller sets their own pickup
   Their own pickup point, GCash number and QR, and delivery fee. Anything
   they leave blank falls back to the shop’s — so a seller is trading the
   minute they have products, and fills in the rest later. The customer is
