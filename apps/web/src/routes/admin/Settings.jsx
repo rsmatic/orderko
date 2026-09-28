@@ -228,10 +228,16 @@ export default function Settings() {
 
         <section className="panel">
           <div className="panel-head">
-            <h3>Pickup point</h3>
-            <span className="tiny faint">where Grab collects</span>
+            <h3>Default pickup point</h3>
+            <span className="tiny faint">for items the shop sells itself</span>
           </div>
           <div className="panel-body stack">
+            <div className="alert alert-info small">
+              Each seller can set their own pickup point and GCash under
+              <strong> People → Selling as</strong>. This is what the shop uses
+              for its own items, and what a seller falls back to until they
+              fill in theirs.
+            </div>
             <Field label="Address">
               <input className="input" value={form.pickup_address} onChange={(e) => set({ pickup_address: e.target.value })} />
             </Field>
@@ -257,7 +263,7 @@ export default function Settings() {
 
         <section className="panel">
           <div className="panel-head">
-            <h3>GCash</h3>
+            <h3>Default GCash</h3>
             <span className={`badge ${form.gcash_number ? 'badge-leaf' : 'badge-neutral'}`}>
               {form.gcash_number ? 'Offered at checkout' : 'Off'}
             </span>

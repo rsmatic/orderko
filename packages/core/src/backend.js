@@ -496,6 +496,12 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       pickup_phone: pick('pickup_phone'),
       own_delivery_fee: Number(pick('own_delivery_fee') ?? 0),
       own_delivery_fee_per_km: Number(pick('own_delivery_fee_per_km') ?? 0),
+      // What this seller has actually set, and what they would inherit.
+      // An editor that saved the merged values back would freeze the shop's
+      // settings into the seller, so later changing the shop would stop
+      // reaching them. Blank here means "use the shop's".
+      own: Object.fromEntries(SELLER_FIELDS.map((k) => [k, own[k] ?? ''])),
+      shop: Object.fromEntries(SELLER_FIELDS.map((k) => [k, shop[k] ?? ''])),
     };
   }
 

@@ -118,8 +118,8 @@ Everything a manager can do, plus:
   does not rewrite who earned what last month. Option groups and categories
   stay with admins, since they are shared and one seller editing them would
   change another seller’s products.
-- **Each seller trades as themselves.** A seller sets their own pickup
-  address, GCash number and QR, and their own delivery fee, and anything
+- **Each seller trades as themselves**, set under **People → Selling as**. A seller sets their own pickup
+  Their own pickup point, GCash number and QR, and delivery fee. Anything
   they leave blank falls back to the shop’s — so a seller is trading the
   minute they have products, and fills in the rest later. The customer is
   told to collect from that seller and to pay that seller. The delivery

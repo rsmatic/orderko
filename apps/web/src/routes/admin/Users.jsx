@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, money, dateTime } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Empty, Modal, Field, Spinner } from '../../components/ui';
+import SellerProfile from '../../components/SellerProfile';
 import { useAuth } from '../../context/AuthContext';
 
 const ROLE_BADGE = {
@@ -230,6 +231,9 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
     password: '',
   });
   const [busy, setBusy] = useState(false);
+  // Where they are collected from and who pays them only exists once the
+  // account does, so a brand new one has the account tab alone.
+  const [tab, setTab] = useState('account');
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   async function save() {
@@ -278,13 +282,34 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
       width="520px"
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" disabled={busy || !valid} onClick={save}>
-            {busy ? <Spinner /> : 'Save'}
-          </button>
+          <button type="button" className="btn" onClick={onClose}>Close</button>
+          {tab === 'account' ? (
+            <button type="button" className="btn btn-primary" disabled={busy || !valid} onClick={save}>
+              {busy ? <Spinner /> : 'Save'}
+            </button>
+          ) : null}
         </>
       }
     >
+      {!isNew && form.role !== 'customer' ? (
+        <div className="row-wrap" style={{ marginBottom: '.25rem' }}>
+          {[['account', 'Account'], ['selling', 'Selling as']].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`btn btn-sm ${tab === key ? "btn-primary" : ""}`}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {tab === 'selling' && !isNew ? (
+        <SellerProfile userId={user.id} onSaved={onSaved} onError={onError} />
+      ) : (
+      <>
       <Field label="Name">
         <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} />
       </Field>
@@ -355,6 +380,8 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           {isSelf ? <span className="tiny faint">(you can't disable yourself)</span> : null}
         </label>
       ) : null}
+      </>
+      )}
     </Modal>
   );
 }

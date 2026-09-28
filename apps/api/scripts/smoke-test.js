@@ -1158,6 +1158,18 @@ async function main() {
     },
   });
   check('a seller can set their own details', mine.status === 200, mine.body?.error);
+  // The editor needs to tell what a seller set from what they inherit, or
+  // saving would freeze the shop's values into their row.
+  check('the profile reports what they actually set',
+    mine.body?.own?.pickup_address === '21 Mabini Street, Carmona, Cavite',
+    JSON.stringify(mine.body?.own?.pickup_address));
+  check('and what they would inherit',
+    typeof mine.body?.shop?.pickup_address === 'string'
+      && mine.body.shop.pickup_address !== mine.body.own.pickup_address,
+    JSON.stringify(mine.body?.shop?.pickup_address));
+  check('a field left blank stays inherited',
+    mine.body?.own?.pickup_phone === '' && Boolean(mine.body?.pickup_phone),
+    JSON.stringify([mine.body?.own?.pickup_phone, mine.body?.pickup_phone]));
   check('and they take effect', mine.body?.pickup_address === '21 Mabini Street, Carmona, Cavite');
   check('with their own GCash', mine.body?.gcash_number === '0917 111 2222');
 
