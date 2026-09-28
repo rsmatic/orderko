@@ -120,7 +120,7 @@ export default function EditOrderItems({ order, menu, onSaved, onCancel, onError
         <input
           className="input"
           maxLength={120}
-          placeholder="e.g. customer rang to add a jar"
+          placeholder="e.g. customer rang to add an item"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />

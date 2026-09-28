@@ -21,7 +21,7 @@ export default function StoreLayout() {
             <span className="brand-mark" aria-hidden="true">
               {shop.logo_url
                 ? <img src={shop.logo_url} alt="" />
-                : '🥣'}
+                : '🧺'}
             </span>
             <span className="brand-name">{shop.shop_name}</span>
           </Link>
@@ -63,7 +63,7 @@ export default function StoreLayout() {
 
       {cart.count > 0 ? (
         <button type="button" className="cart-fab" onClick={() => setCartOpen(true)}>
-          🫙 Basket
+          🧺 Basket
           <span className="cart-count">{cart.count}</span>
         </button>
       ) : null}

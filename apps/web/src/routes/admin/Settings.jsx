@@ -23,6 +23,9 @@ export default function Settings() {
           shop_name: s.shop_name ?? '',
           logo_url: s.logo_url ?? '',
           hero_image_url: s.hero_image_url ?? '',
+          hero_title: s.hero_title ?? '',
+          hero_text: s.hero_text ?? '',
+          hero_cta: s.hero_cta ?? '',
           show_included_label: s.show_included_label !== false,
           google_client_id: s.google_client_id ?? '',
           gcash_number: s.gcash_number ?? '',
@@ -66,6 +69,9 @@ export default function Settings() {
         shop_name: form.shop_name,
         logo_url: form.logo_url,
         hero_image_url: form.hero_image_url,
+        hero_title: form.hero_title.trim(),
+        hero_text: form.hero_text.trim(),
+        hero_cta: form.hero_cta.trim(),
         show_included_label: form.show_included_label,
         google_client_id: form.google_client_id.trim(),
         gcash_number: form.gcash_number.trim(),
@@ -138,6 +144,43 @@ export default function Settings() {
                 hint="Shown beside the shop name in the header. A square picture works best."
               />
             </Field>
+            <Field
+              label="Front page headline"
+              hint="The big line at the top of the shop. Empty uses the shop name."
+            >
+              <input
+                className="input" maxLength={120}
+                placeholder={form.shop_name}
+                value={form.hero_title}
+                onChange={(e) => set({ hero_title: e.target.value })}
+              />
+            </Field>
+
+            <Field
+              label="Front page blurb"
+              hint="A sentence or two under the headline — what you sell and how to get it."
+            >
+              <textarea
+                className="textarea" maxLength={400} rows={3}
+                placeholder="Order ahead and pick it up, or have it brought to your door. Everything is made to order."
+                value={form.hero_text}
+                onChange={(e) => set({ hero_text: e.target.value })}
+              />
+            </Field>
+
+            <Field
+              label="Button on the front page"
+              hint="What the big button says. Empty uses “Start an order”."
+            >
+              <input
+                className="input" maxLength={40}
+                style={{ maxWidth: 260 }}
+                placeholder="Start an order"
+                value={form.hero_cta}
+                onChange={(e) => set({ hero_cta: e.target.value })}
+              />
+            </Field>
+
             <Field label="Front page picture">
               <ImagePicker
                 value={form.hero_image_url}

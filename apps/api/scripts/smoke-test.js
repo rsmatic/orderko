@@ -987,6 +987,58 @@ async function main() {
     (await call('GET', '/catalog/menu', { token: managerToken }))
       .body.products.find((p) => p.id === coldBrew.id)?.track_stock === 0);
 
+    // --------------------------------------- the shop's own front page
+  section('Front page wording');
+
+  const defaults = await call('GET', '/catalog/settings');
+  check('the storefront is given the front page fields',
+    ['hero_title', 'hero_text', 'hero_cta'].every((k) => k in defaults.body),
+    JSON.stringify(Object.keys(defaults.body).filter((k) => k.startsWith('hero'))));
+
+  const written = await call('PUT', '/admin/settings', {
+    token: adminToken,
+    body: {
+      hero_title: 'Suman, ensaymada and crinkles',
+      hero_text: 'Baked this morning. Order ahead and pick it up.',
+      hero_cta: 'See what is fresh',
+    },
+  });
+  check('an admin can write the front page', written.status === 200, written.body?.error);
+
+  const shown = await call('GET', '/catalog/settings');
+  check('and every visitor gets it',
+    shown.body?.hero_title === 'Suman, ensaymada and crinkles'
+      && shown.body?.hero_cta === 'See what is fresh',
+    JSON.stringify([shown.body?.hero_title, shown.body?.hero_cta]));
+
+  check('a manager cannot change it',
+    (await call('PUT', '/admin/settings', {
+      token: managerToken, body: { hero_title: 'not mine to write' },
+    })).status === 403);
+
+  // Free text on a public page: it has to be bounded.
+  const tooLong = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { hero_text: 'x'.repeat(500) },
+  });
+  check('a blurb that is too long is refused', tooLong.status === 400, `got ${tooLong.status}`);
+  check('and the good one survived',
+    (await call('GET', '/catalog/settings')).body?.hero_text
+      === 'Baked this morning. Order ahead and pick it up.');
+
+  const padded = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { hero_title: '   Kakanin at Panaderya   ' },
+  });
+  check('surrounding spaces are trimmed off',
+    padded.body?.settings?.hero_title === 'Kakanin at Panaderya',
+    JSON.stringify(padded.body?.settings?.hero_title));
+
+  // Cleared, the storefront falls back rather than showing an empty headline.
+  await call('PUT', '/admin/settings', {
+    token: adminToken, body: { hero_title: '', hero_text: '', hero_cta: '' },
+  });
+  check('it can be cleared again',
+    (await call('GET', '/catalog/settings')).body?.hero_title === '');
+
     // ---------------------------------------------- removing one order
   section('Deleting an order');
 

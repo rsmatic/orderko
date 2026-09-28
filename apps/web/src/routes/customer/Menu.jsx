@@ -37,8 +37,10 @@ export default function Menu() {
   }, [menu, activeCategory]);
 
   if (error) return <div className="container" style={{ padding: '2rem 0' }}><Alert kind="error">{error}</Alert></div>;
-  if (!menu) return <Loading label="Bringing out the jars…" />;
+  if (!menu) return <Loading label="Bringing out the menu…" />;
 
+  // Whatever has choices to make is the most interesting thing to open; a
+  // shop selling only ready-made items just gets its first product.
   const heroProduct = menu.products.find((p) => p.option_groups?.length) ?? menu.products[0];
 
   function handleAdd(line) {
@@ -52,17 +54,18 @@ export default function Menu() {
       <div className="container">
         <section className="hero">
           <div>
-            <h1 className="hero-title">Oats that wait for you.</h1>
+            <h1 className="hero-title">
+              {menu.settings.hero_title || menu.settings.shop_name}
+            </h1>
             <p className="hero-sub">
-              Soaked overnight, packed in a jar, and built exactly how you like it —
-              mix up to three fruits, choose your milk, and pile on the walnuts,
-              Skippy peanut butter or chia seeds. Ready for pickup, or on a Grab
-              bike to your door.
+              {menu.settings.hero_text
+                || 'Order ahead and pick it up, or have it brought to your door. '
+                  + 'Everything is made to order.'}
             </p>
             <div className="row-wrap" style={{ marginTop: '1.15rem' }}>
               {heroProduct ? (
                 <button type="button" className="btn btn-primary btn-lg" onClick={() => setEditing(heroProduct)}>
-                  Build your jar
+                  {menu.settings.hero_cta || 'Start an order'}
                 </button>
               ) : null}
               <span className="pill">
@@ -78,7 +81,7 @@ export default function Menu() {
             <img
               src={shop.hero_image_url
                 || 'https://images.unsplash.com/photo-1517093157656-b9eccef91cb1?w=900&q=75'}
-              alt={shop.hero_image_url ? shop.shop_name : 'A jar of overnight oats topped with fresh fruit'}
+              alt={shop.hero_image_url ? shop.shop_name : ''}
               loading="eager"
             />
           </div>
@@ -107,7 +110,7 @@ export default function Menu() {
         </nav>
 
         {visible.length === 0 ? (
-          <Empty title="Nothing here yet" icon="🥣">Try another category.</Empty>
+          <Empty title="Nothing here yet" icon="🧺">Try another category.</Empty>
         ) : (
           <div className="grid grid-3" style={{ paddingBottom: '5rem' }}>
             {visible.map((product) => (

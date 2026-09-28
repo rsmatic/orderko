@@ -209,8 +209,11 @@ export default function OrderDetail({ orderId, onClose, onChanged }) {
       <section className="panel">
         <div className="panel-head">
           <h3>Items</h3>
-          {/* Settled orders are a record, not a working document. */}
-          {!editing && !['completed', 'cancelled'].includes(order.status) ? (
+          {/* A cancelled order has nothing to make. A completed one is a
+              settled record, which only an admin may rewrite — they can
+              already delete it, so correcting it is the lesser act. */}
+          {!editing && order.status !== 'cancelled'
+            && (order.status !== 'completed' || me?.role === 'admin') ? (
             <button type="button" className="btn btn-sm" onClick={() => setEditing(true)}>
               Edit items
             </button>

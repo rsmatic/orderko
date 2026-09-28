@@ -51,7 +51,9 @@ export default function CartDrawer({ onClose }) {
           <div>
             <h2>Your basket</h2>
             <div className="small muted">
-              {cart.count === 0 ? 'Nothing in it yet' : `${cart.count} jar${cart.count === 1 ? '' : 's'}`}
+              {cart.count === 0
+                ? 'Nothing in it yet'
+                : `${cart.count} item${cart.count === 1 ? '' : 's'}`}
             </div>
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">✕</button>
@@ -59,7 +61,7 @@ export default function CartDrawer({ onClose }) {
 
         <div className="drawer-body">
           {cart.lines.length === 0 ? (
-            <Empty title="Empty basket" icon="🫙">Pick a jar from the menu to get started.</Empty>
+            <Empty title="Empty basket" icon="🧺">Pick something from the menu to get started.</Empty>
           ) : (
             cart.lines.map((line) => (
               <div key={line.key} className="cart-line">

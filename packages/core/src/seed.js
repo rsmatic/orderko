@@ -25,6 +25,13 @@ export const seedSettings = () => ({
   // admin can set either to an image URL or an uploaded picture.
   logo_url: '',
   hero_image_url: '',
+  // The headline and blurb on the front page. Empty falls back to the shop
+  // name and a line that suits anything a shop might sell — the wording used
+  // to be soldered to overnight oats, which made the app read as the wrong
+  // shop the moment someone sold suman or ensaymada from it.
+  hero_title: '',
+  hero_text: '',
+  hero_cta: '',
   // Whether a free option says so. Worth showing when most choices cost
   // extra; just noise when a whole group is free.
   show_included_label: true,

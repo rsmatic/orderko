@@ -113,6 +113,11 @@ Everything a manager can do, plus:
   account can also be deleted outright; any orders it placed stay in the books
   under the name and number given at checkout, because deleting someone should
   not change what you sold. You cannot delete your own account.
+- **Front page wording** — the headline, the blurb and the button label are
+  shop settings, not code. Nothing customer-facing names oats any more, so a
+  shop selling suman, ensaymada and crinkles reads as itself rather than as
+  somebody else’s menu. Left empty they fall back to the shop name and a
+  line that suits anything.
 - **Shop settings** — branding (logo, front-page picture, and whether free
   choices are labelled "Included"), name, currency, tax rate, minimum order,
   prep time, delivery radius, the pickup address Grab collects from, a

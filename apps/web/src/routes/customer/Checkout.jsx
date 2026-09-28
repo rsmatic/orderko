@@ -169,7 +169,7 @@ export default function Checkout() {
   if (!cart.lines.length) {
     return (
       <div className="container" style={{ padding: '3rem 0' }}>
-        <Empty title="Your basket is empty" icon="🫙">
+        <Empty title="Your basket is empty" icon="🧺">
           <Link to="/" className="btn btn-primary" style={{ marginTop: '.8rem' }}>Back to the menu</Link>
         </Empty>
       </div>

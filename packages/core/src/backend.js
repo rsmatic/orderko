@@ -252,6 +252,9 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         shop_name: s.shop_name,
         logo_url: s.logo_url ?? '',
         hero_image_url: s.hero_image_url ?? '',
+        hero_title: s.hero_title ?? '',
+        hero_text: s.hero_text ?? '',
+        hero_cta: s.hero_cta ?? '',
         show_included_label: s.show_included_label !== false,
         google_client_id: s.google_client_id ?? '',
         // A receiving number is meant to be read by customers — that is the
@@ -1077,9 +1080,13 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireRole(user, 'admin', 'manager');
       const order = db.orders.find((o) => o.id === Number(m[1]));
       if (!order) throw notFound('Order not found');
+      // Nothing to make, so nothing to change.
       if (order.status === 'cancelled') throw bad('A cancelled order cannot be edited');
-      if (order.status === 'completed') {
-        throw bad('This order is already completed — edit it before handing it over');
+      // A completed order is a settled record, and a manager should not be
+      // rewriting one after the fact. An admin may: they can already delete
+      // it outright, and correcting a mistake is the lesser act of the two.
+      if (order.status === 'completed' && user.role !== 'admin') {
+        throw bad('This order is completed — ask an admin to change it');
       }
 
       const before = linesOf(order.id);
@@ -1531,6 +1538,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       requireRole(user, 'admin');
       const allowed = [
         'shop_name', 'logo_url', 'hero_image_url', 'show_included_label',
+        'hero_title', 'hero_text', 'hero_cta',
         'google_client_id', 'gcash_number', 'gcash_name', 'gcash_qr_url',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
@@ -1568,6 +1576,15 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         patch.gcash_number = typed;
       }
       if (patch.gcash_name !== undefined) patch.gcash_name = String(patch.gcash_name ?? '').trim();
+
+      // Free text on the front page of a public site: trim it, and cap it so
+      // a paste of a whole document cannot be saved into the page.
+      for (const [k, max] of [['hero_title', 120], ['hero_text', 400], ['hero_cta', 40]]) {
+        if (patch[k] === undefined) continue;
+        const text = String(patch[k] ?? '').trim();
+        if (text.length > max) throw bad(`That is too long — keep it under ${max} characters`);
+        patch[k] = text;
+      }
 
       for (const k of ['logo_url', 'hero_image_url', 'gcash_qr_url']) {
         if (patch[k] === undefined) continue;

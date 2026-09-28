@@ -17,8 +17,8 @@ const PAYMENT_LABEL = {
 const STEPS = [
   { key: 'pending',    label: 'Order received',   note: 'We have your order' },
   { key: 'confirmed',  label: 'Confirmed',        note: 'The kitchen has it' },
-  { key: 'preparing',  label: 'Building your jar', note: 'Layering it up' },
-  { key: 'ready',      label: 'Ready',            note: 'Packed and chilled' },
+  { key: 'preparing',  label: 'Being made',      note: 'In the kitchen' },
+  { key: 'ready',      label: 'Ready',           note: 'Packed and waiting' },
   { key: 'dispatched', label: 'On the way',       note: 'With a Grab driver' },
   { key: 'delivered',  label: 'Delivered',        note: 'Enjoy' },
 ];
@@ -337,7 +337,7 @@ export function OrderHistory() {
     <div className="container" style={{ padding: '1.75rem 0 4rem', maxWidth: 760 }}>
       <h1 style={{ marginBottom: '1.25rem' }}>Your orders</h1>
       {orders.length === 0 ? (
-        <Empty title="No orders yet" icon="🥣">
+        <Empty title="No orders yet" icon="🧺">
           <Link to="/" className="btn btn-primary" style={{ marginTop: '.8rem' }}>Browse the menu</Link>
         </Empty>
       ) : (
