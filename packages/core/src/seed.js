@@ -38,6 +38,9 @@ export const seedSettings = () => ({
   // Paste from Google Cloud → Credentials → OAuth client ID. Public by
   // design; empty simply hides the Google button.
   google_client_id: '',
+  // A bot token can post as the shop for ever, so unlike the GCash number it
+  // is never put in the menu payload the storefront receives.
+  telegram_bot_token: '',
   // Where customers send a GCash payment. Empty hides GCash at checkout.
   // Set it in Admin -> Shop settings; it is shown to every customer, which
   // is exactly what a receiving number is for.

@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { createJsonStore } from './persistence.js';
 import { auth, createDeliveryRouter } from './adapters.js';
 import { googleAuth } from './google-auth.js';
+import { createTelegram } from './telegram.js';
 import { mapStatus } from './grab-live.js';
 
 const store = createJsonStore({
@@ -29,6 +30,7 @@ const backend = createBackend({
   auth,
   delivery,
   googleAuth,
+  notify: createTelegram(),
 });
 
 const app = express();

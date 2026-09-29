@@ -3,6 +3,7 @@ import { api, money, dateTime } from '../../lib/api';
 import { DashHeader } from '../DashboardLayout';
 import { Loading, Alert, Empty, Modal, Field, Spinner } from '../../components/ui';
 import SellerProfile from '../../components/SellerProfile';
+import TelegramLink from '../../components/TelegramLink';
 import { useAuth } from '../../context/AuthContext';
 
 const ROLE_BADGE = {
@@ -285,6 +286,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
     role: user.role ?? 'customer',
     manages_all_products: Boolean(user.manages_all_products),
     can_edit_shared_menu: Boolean(user.can_edit_shared_menu),
+    telegram_chat_id: user.telegram_chat_id ?? '',
     is_active: Boolean(user.is_active ?? true),
     password: '',
   });
@@ -309,6 +311,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           role: form.role,
           manages_all_products: form.manages_all_products,
           can_edit_shared_menu: form.can_edit_shared_menu,
+          telegram_chat_id: form.telegram_chat_id,
           password: form.password,
         });
         onSaved('Account created');
@@ -319,6 +322,7 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
           role: form.role,
           manages_all_products: form.manages_all_products,
           can_edit_shared_menu: form.can_edit_shared_menu,
+          telegram_chat_id: form.telegram_chat_id,
           is_active: form.is_active,
         };
         const email = form.email.trim().toLowerCase();
@@ -432,6 +436,16 @@ function UserEditor({ user, isSelf, onClose, onSaved, onError }) {
             orders made up entirely of those. An admin always sees everything.
           </span>
         </Field>
+      ) : null}
+
+      {!isNew ? (
+        <TelegramLink
+          userId={user.id}
+          userName={form.name || 'them'}
+          value={form.telegram_chat_id}
+          onChange={(v) => set({ telegram_chat_id: v })}
+          onError={onError}
+        />
       ) : null}
 
       <Field label="Phone">

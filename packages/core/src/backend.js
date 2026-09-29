@@ -129,7 +129,7 @@ export async function freshState({
  * @param {object}   [opts.googleAuth] { verify(credential, clientId) } — absent
  *                   when Google sign-in is not available.
  */
-export function createBackend({ state, persist, auth, delivery, googleAuth }) {
+export function createBackend({ state, persist, auth, delivery, googleAuth, notify }) {
   let db = state;
 
   const nextId = (key) => {
@@ -724,6 +724,27 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
     return value;
   }
 
+  /**
+   * Who to tell when an order arrives: the seller whose food it is, and every
+   * admin, since somebody has to see the ones nobody owns.
+   *
+   * Sending is somebody else's job — the core has no network. It hands over a
+   * list of chat ids and a line of text, and whether that goes to Telegram or
+   * anywhere else is the adapter's business.
+   */
+  function orderAudience(ownerId) {
+    const ids = new Set();
+    for (const u of db.users) {
+      if (!u.is_active || !u.telegram_chat_id) continue;
+      if (u.role === 'admin' || u.id === ownerId) ids.add(String(u.telegram_chat_id));
+    }
+    return [...ids];
+  }
+
+  /** 1234567890:AAH…kQ4 — enough to recognise, not enough to use. */
+  const maskToken = (t) => (t.length < 12 ? (t ? '•'.repeat(t.length) : '')
+    : `${t.slice(0, 10)}…${t.slice(-4)}`);
+
   const orderNumberFor = (id) => `OK-${String(240000 + id).padStart(6, '0')}`;
 
   /**
@@ -1295,6 +1316,18 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         created_at: nowIso(),
       });
       audit(user, 'order.create', 'order', id, { order_number: orderNumberFor(id) });
+
+      // After the order exists and never in its way: a notification that fails
+      // must not lose the sale. Errors are swallowed on purpose.
+      const audience = orderAudience(seller.user_id);
+      if (audience.length) {
+        Promise.resolve(notify?.newOrder?.({
+          token: db.settings.telegram_bot_token,
+          chatIds: audience,
+          order: loadOrder(id),
+          sellerName: seller.display_name,
+        })).catch(() => { /* an alert nobody got is not an order nobody placed */ });
+      }
       return loadOrder(id);
     }],
 
@@ -1873,6 +1906,13 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
       if (body.can_edit_shared_menu !== undefined) {
         target.can_edit_shared_menu = Boolean(body.can_edit_shared_menu);
       }
+      if (body.telegram_chat_id !== undefined) {
+        const id = String(body.telegram_chat_id ?? '').trim();
+        // Telegram ids are whole numbers; a negative one is a group. Blank
+        // unlinks, which is how somebody stops being told about orders.
+        if (id && !/^-?\d{1,20}$/.test(id)) throw bad('That is not a Telegram chat id');
+        target.telegram_chat_id = id || null;
+      }
       if (body.phone !== undefined) assertPhoneFree(body.phone, target.id);
       for (const k of ['name', 'phone', 'role']) if (body[k] !== undefined) target[k] = body[k];
       if (body.is_active !== undefined) target.is_active = body.is_active ? 1 : 0;
@@ -1920,7 +1960,14 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
 
     ['GET', /^\/admin\/settings$/, async (m, body, user) => {
       requireRole(user, 'admin', 'manager');
-      return { settings: { ...db.settings }, grab_mode: db.settings.grab_mode ?? 'sim' };
+      // A bot token can post as the shop for ever. The page needs to know
+      // whether one is set and roughly which, not to carry the whole thing
+      // through a browser and a network log every time settings are opened.
+      const token = String(db.settings.telegram_bot_token ?? '');
+      return {
+        settings: { ...db.settings, telegram_bot_token: maskToken(token) },
+        grab_mode: db.settings.grab_mode ?? 'sim',
+      };
     }],
 
     ['PUT', /^\/admin\/settings$/, async (m, body, user) => {
@@ -1929,6 +1976,7 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         'shop_name', 'logo_url', 'hero_image_url', 'show_included_label',
         'hero_title', 'hero_text', 'hero_cta',
         'google_client_id', 'gcash_number', 'gcash_name', 'gcash_qr_url',
+        'telegram_bot_token',
         'currency', 'tax_rate', 'pickup_address', 'pickup_lat', 'pickup_lng',
         'pickup_phone', 'min_order_total', 'delivery_enabled', 'order_lead_mins',
         'max_delivery_km', 'grab_mode',
@@ -1957,6 +2005,14 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
         }
         const unavailable = await delivery.whyUnavailable?.(patch.grab_mode);
         if (unavailable) throw bad(unavailable);
+      }
+
+      // The page sends back whatever it was shown, so a token still wearing
+      // its mask is the one already stored and must not overwrite it.
+      if (patch.telegram_bot_token !== undefined) {
+        const given = String(patch.telegram_bot_token ?? '').trim();
+        if (given.includes('…') || given.includes('•')) delete patch.telegram_bot_token;
+        else patch.telegram_bot_token = given;
       }
 
       if (patch.gcash_number !== undefined) {
@@ -2136,6 +2192,40 @@ export function createBackend({ state, persist, auth, delivery, googleAuth }) {
           ),
         })),
       };
+    }],
+
+    /**
+     * Who has written to the bot lately, so an admin can match a person to
+     * their chat without anyone having to find an id by hand.
+     *
+     * Telegram only hands these over once, so this is a live read rather than
+     * anything stored; whoever pressed Start most recently is at the top.
+     */
+    ['GET', /^\/admin\/telegram\/chats$/, async (m, body, user) => {
+      requireRole(user, 'admin');
+      if (!String(db.settings.telegram_bot_token ?? '').trim()) {
+        throw bad('No Telegram bot is set up yet');
+      }
+      const chats = await notify?.recentChats?.(db.settings.telegram_bot_token);
+      const linked = new Set(db.users.map((u) => String(u.telegram_chat_id ?? '')));
+      return {
+        chats: (chats ?? []).map((c) => ({ ...c, linked: linked.has(String(c.id)) })),
+      };
+    }],
+
+    /** Proves the bot works, and proves this person will actually hear it. */
+    ['POST', /^\/admin\/telegram\/test$/, async (m, body, user) => {
+      requireRole(user, 'admin');
+      const token = String(db.settings.telegram_bot_token ?? '').trim();
+      if (!token) throw bad('No Telegram bot is set up yet');
+      const target = body.user_id
+        ? db.users.find((u) => u.id === Number(body.user_id))
+        : user;
+      if (!target) throw notFound('User not found');
+      if (!target.telegram_chat_id) throw bad(`${target.name} is not connected to Telegram yet`);
+      await notify?.send?.(token, String(target.telegram_chat_id),
+        `Test from ${db.settings.shop_name}. New orders will arrive here.`);
+      return { sent: true, to: target.name };
     }],
 
     ['GET', /^\/admin\/audit$/, async (m, body, user, query) => {

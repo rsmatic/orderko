@@ -183,6 +183,114 @@ async function main() {
     !(await call('GET', '/admin/users?limit=200', { token: adminToken }))
       .body.users.some((u) => u.email === 'smoke-plain@orderko.test'));
 
+  section('Order alerts');
+
+  const FAKE_TOKEN = '1234567890:AAHfakefakefakefakefakefakefakefake';
+  const setToken = await call('PUT', '/admin/settings', {
+    token: adminToken, body: { telegram_bot_token: FAKE_TOKEN },
+  });
+  check('an admin can set a bot token', setToken.status === 200, setToken.body?.error);
+
+  // A bot token can post as the shop for ever. It must never leave by the
+  // front door.
+  const alertPublicSettings = await call('GET', '/catalog/settings');
+  check('the storefront is never given the token',
+    !JSON.stringify(alertPublicSettings.body).includes('telegram_bot_token')
+      && !JSON.stringify(alertPublicSettings.body).includes(FAKE_TOKEN),
+    'the token reached the storefront');
+  const alertPublicMenu = await call('GET', '/catalog/menu');
+  check('nor is it in the menu', !JSON.stringify(alertPublicMenu.body).includes(FAKE_TOKEN));
+
+  const adminView = await call('GET', '/admin/settings', { token: adminToken });
+  check('even an admin sees it masked',
+    adminView.body?.settings?.telegram_bot_token !== FAKE_TOKEN
+      && String(adminView.body?.settings?.telegram_bot_token).includes('…'),
+    JSON.stringify(adminView.body?.settings?.telegram_bot_token));
+
+  // Saving the settings page back must not overwrite the real token with the
+  // mask it was shown.
+  await call('PUT', '/admin/settings', {
+    token: adminToken,
+    body: { telegram_bot_token: adminView.body.settings.telegram_bot_token, shop_name: 'Orderko Overnight Oats' },
+  });
+  check('saving a masked token leaves the real one alone',
+    String((await call('GET', '/admin/settings', { token: adminToken }))
+      .body?.settings?.telegram_bot_token).includes('…'),
+    'the mask was saved over the token');
+
+  // A manager may read the settings page; what matters is that the token is
+  // masked for them too, and that they cannot write one.
+  check('a manager sees the token masked as well',
+    String((await call('GET', '/admin/settings', { token: managerToken }))
+      .body?.settings?.telegram_bot_token).includes('…'));
+  check('and cannot set one',
+    (await call('PUT', '/admin/settings', {
+      token: managerToken, body: { telegram_bot_token: 'theirs' },
+    })).status === 403);
+
+  // Linking a person.
+  const linked = await call('PATCH', '/admin/users/3', {
+    token: adminToken, body: { telegram_chat_id: '987654321' },
+  });
+  check('a person can be connected to the bot',
+    linked.body?.telegram_chat_id === '987654321', JSON.stringify(linked.body?.telegram_chat_id));
+  check('a nonsense chat id is refused',
+    (await call('PATCH', '/admin/users/3', {
+      token: adminToken, body: { telegram_chat_id: 'not-an-id' },
+    })).status === 400);
+  check('and the good one survived',
+    (await call('GET', '/admin/users?limit=200', { token: adminToken }))
+      .body.users.find((u) => u.id === 3)?.telegram_chat_id === '987654321');
+  check('blank disconnects them',
+    (await call('PATCH', '/admin/users/3', {
+      token: adminToken, body: { telegram_chat_id: '' },
+    })).body?.telegram_chat_id === null);
+
+  check('a manager cannot connect anybody',
+    (await call('PATCH', '/admin/users/3', {
+      token: managerToken, body: { telegram_chat_id: '111' },
+    })).status === 403);
+
+  // The token here is fake, so Telegram will refuse it. What matters is that
+  // an order is still taken when the alert cannot be sent.
+  await call('PATCH', '/admin/users/1', {
+    token: adminToken, body: { telegram_chat_id: '987654321' },
+  });
+  // This section runs before the menu section, so it finds its own item.
+  const alertProduct = (await call('GET', '/catalog/menu')).body.products
+    .find((p) => !(p.option_groups ?? []).length) 
+    ?? (await call('POST', '/catalog/products', {
+      token: adminToken,
+      body: { name: `Alert Item ${Date.now()}`, category_id: 1, base_price: 60 },
+    })).body;
+  const orderDespite = await call('POST', '/orders', {
+    token: customerToken,
+    body: {
+      items: [{ product_id: alertProduct.id, quantity: 3, option_ids: [] }],
+      fulfillment_type: 'pickup',
+      contact_name: 'Alert Tester', contact_phone: '+639170000030',
+    },
+  });
+  check('an order is taken even when the alert cannot be sent',
+    orderDespite.status === 201,
+    JSON.stringify(orderDespite.body?.error ?? orderDespite.body?.details));
+  check('and it is a real order, not a half-written one',
+    orderDespite.body?.items?.length === 1 && Number(orderDespite.body?.total) > 0);
+  await call('DELETE', `/orders/${orderDespite.body.id}`, { token: adminToken });
+
+  const testSend = await call('POST', '/admin/telegram/test', {
+    token: adminToken, body: { user_id: 1 },
+  });
+  check('a test to a bad token fails loudly rather than silently',
+    testSend.status >= 400, `got ${testSend.status}`);
+
+  // Put the shop back.
+  await call('PATCH', '/admin/users/1', { token: adminToken, body: { telegram_chat_id: '' } });
+  await call('PUT', '/admin/settings', { token: adminToken, body: { telegram_bot_token: '' } });
+  check('the bot can be switched off',
+    (await call('GET', '/admin/settings', { token: adminToken }))
+      .body?.settings?.telegram_bot_token === '');
+
   section('Categories');
 
   const cats = (await call('GET', '/catalog/menu', { token: adminToken })).body.categories;

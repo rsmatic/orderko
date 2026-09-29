@@ -191,6 +191,16 @@ Everything a manager can do, plus:
   dashboard never asked, so a category named for what it used to hold stayed
   that way. Renaming never moves an item. There is no delete: one with items
   in it would orphan them, so an unused category is hidden instead.
+- **Order alerts over Telegram** — a bot token in Shop settings, and each
+  person connected under **People**. A seller is told about their own orders;
+  an admin is told about all of them, including the ones nobody owns.
+  Telegram rather than Messenger for one reason: a Facebook Page may only
+  write to somebody who messaged it in the last 24 hours, and the message
+  tags that used to carry order updates past that window were withdrawn in
+  April 2026 — orders arrive at any hour, so it cannot be relied on. A
+  Telegram bot is free, needs no review, and can write to anyone who has
+  ever pressed Start. Sending happens after the order is written and its
+  failures are swallowed: an alert nobody got is not an order nobody placed.
 - **Activity log** — every staff change, who made it and when.
 - **Delete an order** — admin only, from the order sheet. Not the same as
   cancelling: cancelling records that an order was called off and leaves it

@@ -58,6 +58,8 @@ export const publicUser = (u) =>
     // The shared choices and categories are everyone's, so this one is
     // granted rather than assumed.
     can_edit_shared_menu: u.role === 'admin' || u.can_edit_shared_menu === true,
+    // Shown in People so an admin can see who will hear about an order.
+    telegram_chat_id: u.telegram_chat_id ?? null,
   };
 
 export const slugify = (s) =>

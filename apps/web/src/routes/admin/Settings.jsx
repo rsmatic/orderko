@@ -28,6 +28,7 @@ export default function Settings() {
           hero_cta: s.hero_cta ?? '',
           show_included_label: s.show_included_label !== false,
           google_client_id: s.google_client_id ?? '',
+          telegram_bot_token: s.telegram_bot_token ?? '',
           currency: s.currency ?? 'PHP',
           tax_rate: String(Number(s.tax_rate ?? 0) * 100),
           min_order_total: String(s.min_order_total ?? 0),
@@ -63,6 +64,7 @@ export default function Settings() {
         hero_cta: form.hero_cta.trim(),
         show_included_label: form.show_included_label,
         google_client_id: form.google_client_id.trim(),
+        telegram_bot_token: form.telegram_bot_token.trim(),
         currency: form.currency.toUpperCase(),
         tax_rate: Number(form.tax_rate) / 100,
         min_order_total: Number(form.min_order_total),
@@ -205,6 +207,50 @@ export default function Settings() {
         </section>
 
 
+
+        <section className="panel">
+          <div className="panel-head">
+            <h3>Order alerts</h3>
+            <span className={`badge ${form.telegram_bot_token ? "badge-leaf" : "badge-neutral"}`}>
+              {form.telegram_bot_token ? 'Telegram on' : 'Off'}
+            </span>
+          </div>
+          <div className="panel-body stack">
+            <Field
+              label="Telegram bot token"
+              hint="Each person is then connected under People. A seller only hears about their own orders; admins hear about all of them."
+            >
+              <input
+                className="input mono"
+                placeholder="1234567890:AA..."
+                value={form.telegram_bot_token}
+                onChange={(e) => set({ telegram_bot_token: e.target.value })}
+              />
+            </Field>
+
+            <details className="small muted">
+              <summary style={{ cursor: "pointer" }}>How do I make the bot?</summary>
+              <ol style={{ margin: ".5rem 0 0", paddingLeft: "1.2rem", lineHeight: 1.6 }}>
+                <li>Open Telegram and search for <strong>@BotFather</strong>.</li>
+                <li>Send <code>/newbot</code> and follow the two questions.</li>
+                <li>It replies with a token. Paste it above and save.</li>
+                <li>Each person opens your new bot and presses <strong>Start</strong>.</li>
+                <li>In <strong>People</strong>, open them and press <strong>Find them</strong>.</li>
+              </ol>
+              <p style={{ marginBottom: 0 }}>
+                Free, with nothing to apply for. Messenger cannot do this: a Page
+                may only write to someone who messaged it in the last 24 hours,
+                and the tags that used to carry order updates past that were
+                withdrawn in April 2026.
+              </p>
+            </details>
+
+            <div className="alert alert-info small">
+              The token is kept out of everything the storefront receives, and
+              shown masked here once saved — paste a new one to replace it.
+            </div>
+          </div>
+        </section>
 
         <section className="panel">
           <div className="panel-head">
